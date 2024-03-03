@@ -1,0 +1,11 @@
+output/*
+img/*
+tmp/*
+lp_choob/*
+lib/__pycache__/*
+__pycache__/*
+z_chat.log
+out_error.txt
+prj_*
+snippets/*
+tmp/*
