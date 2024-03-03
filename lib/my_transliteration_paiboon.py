@@ -13,7 +13,7 @@ from pythainlp.tokenize import word_tokenize
 from pythainlp.transliterate import romanize
 
 # 3.3.2024 data from https://thai-notes.com/tools/thai2ipa.data
-template_file = "thai2ipa.data"
+template_file = "lib/thai2ipa.data"
 with codecs.open(template_file, 'r', encoding='utf8') as f:
     lines = f.read().splitlines()
 data = {}
@@ -23,18 +23,26 @@ for t in lines:
 DEFAULT_DICT_TRIE = Trie(data.keys())
 
 
-def word_tokenize_to_g2p(text):
+def tokenize_and_transliterate(text):
     words = word_tokenize(text)
     ret = []
     for w in words:
+        er = False
         try:
-            ret.append(data[w])  # romanize(a,engine='pyicu'))
+            ret.append(data[w])
 
         # backup transliteration if not found in dictionary
-        except:
-            word_list_icu = word_tokenize(w, engine="icu")
-            for b in word_list_icu:
-                ret.append(romanize(b, engine='pyicu'))
+        except KeyError:
+            er = True
+
+        if er:
+            try:
+                word_list_icu = word_tokenize(w, engine="icu")
+                for b in word_list_icu:
+                    ret.append(romanize(b, engine='pyicu'))
+            except (LookupError, TypeError, ValueError) as e:
+                    # Handle the exception
+                    print(f"     Transliteration: word {w} could not be resolved -> ignore?")
     return ' '.join(ret)
 
 

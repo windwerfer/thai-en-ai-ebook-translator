@@ -79,7 +79,8 @@ def clean_img_tags(html_content):
 
 def extract_tags(filename, prj_folder, url_webpage, tags=['h','p']):
     """Extracts all <p> tags from an HTML file and returns them as a list."""
-    with open(filename, "r") as file:
+    p = prj_folder + '/html_source/' + filename
+    with open(p, "r", encoding="utf-8") as file:
         contents = file.read()
         soup = BeautifulSoup(contents, "html.parser")
         tags = soup.find_all(tags)
@@ -102,6 +103,7 @@ def extract_tags(filename, prj_folder, url_webpage, tags=['h','p']):
 
 def download_images_and_update_src(text, base_url, prj_folder):
     # Ensure the save directory exists
+    #TODO: unique images through path: monk/monk/img.jpg -> monk_monk_img.jpg
     save_dir = prj_folder + '/img/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

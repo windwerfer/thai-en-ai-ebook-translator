@@ -113,8 +113,31 @@ def token_count(text):
     en = token_count_eng0(text)
     return th + en
 
+def remove_html_tags(text):
+    pattern = r"<.*?>"
+    return re.sub(pattern, "", text)
 
-def split_paragraphs(text, delimiter="\n\n", use_html_tag_guides=False, trim=True):
+def remove_newline(text):
+    pattern = r"\n"
+    return re.sub(pattern, "", text)
+
+
+def repare_tags(text):
+    """ the transliterate function (my_transliteration_paiboon.py) messes up the tags.. repair!!
+        also remove all html tags except p
+    """
+    # repare p
+    pattern = r"[ ]+<\s+p\s+id\s+= ' ([^ ]+) ' > < / p >"
+    repl = r"<p id='\1'></p>"
+    text = re.sub(pattern, repl, text)
+    # remove all tags that are not p
+    pattern = r'<(?!\/?p\b)[^>]*>'
+    repl = r""
+    text = re.sub(pattern, repl, text)
+
+    return text
+
+def split_paragraphs(text, delimiter="\n[ ]*\n", use_html_tag_guides=False, trim=True):
     paragraph = re.split(delimiter, text)
     if trim:
         for i in range(0, len(paragraph)):
@@ -131,7 +154,7 @@ def split_paragraphs(text, delimiter="\n\n", use_html_tag_guides=False, trim=Tru
                 continue
 
             # remove id tag from p
-            p = re.sub(r"<p id='Pa_\d+'></p>", "", p)
+            p = re.sub(r"<p id='Pa_\d+'></p>[ ]*", "", p)
             # insert p in at the right place of the list paragraph_sorted
             # If the index is greater than the length of the list, new elements will be created with the value `None`.
             paragraph_sorted.insert(int(id_p), p)
