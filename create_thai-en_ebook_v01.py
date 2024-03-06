@@ -4,6 +4,9 @@
 #  - transliterate from thai-language.com
 #  - bs4 -> retrieve html page and extract text to <proj>input/input.txt + images
 #  - import images
+#  - !! pickle oBlocks
+#  - handle roman char in translation
+
 
 
 #               seems to work good..
@@ -24,6 +27,9 @@ import re
 import sys
 import textwrap
 import shutil
+
+
+
 import argparse
 import subprocess
 import copy
@@ -70,14 +76,17 @@ def init_config():
     stats['total_retries'] = 0
     stats['total_tokens_send'] = 0
     stats['total_tokens_received'] = 0
+    stats['failed_blocks'] = []
 
     conf = {}
     conf['project_name'] = "prj_lp_choob_01"
 
-    conf['start_block'] = 0
-    conf['end_block'] = 20
-    conf['max_attempts'] = 5    # maximum retries to send to an ai before giving up
-    conf['max_workers'] = 5
+    conf['start_block'] = 31       # start at 0
+    conf['end_block'] = 60        # put in 9999 for the end of the book
+    conf['max_attempts'] = 15    # maximum retries to send to an ai before giving up
+    conf['max_workers'] = 20
+    conf['pause_between_retries'] = 5
+    conf['max_tokens_per_block'] = 1500
 
 
     conf['debug'] = True   # debugger_is_active()    # i couldnt get the debug check to work.. do manually
@@ -127,31 +136,35 @@ def init_config():
         {
             # "prompt": "transliterate the thai text with the ISO 11940 system. do not include any explanations. keep html tags.\n\nText: ",
             "prompt": "Transliteration is now done through the pythainpl library, together with a dictionary thai(script)->transliteration(paiboon). (not through gemini or chatgpt)",
-            "temperature": "0.6", "top_k": "2", "top_p": "0.4"
+            # "temperature": "0.6", "top_k": "2", "top_p": "0.4",
+            "engine": "transliterate__pythainpl_dict_paiboon", "position": "prepend", "type": "footnote",
         },
-        {"engine": "pythainpl_dict_paiboon", "position": "prepend", "type": "footnote", },
     ]
     conf["prompts"]["default"] = [
         {
-            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags.\n\n ",
-            "temperature": "0.6", "top_k": "2", "top_p": "0.4"
+            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags and characters that are in roman/latin  unchanged.\n\n ",
+            "temperature": "0.6", "top_k": "2", "top_p": "0.4","engine": "gemini", "position": "append", "type": "paragraph",
+            "max_tokens": 1400,            # decides how many paragraphs will be send at one time to the AI. 1 = each separatly, 1400 = approx 4 pages of text
+
         },
-        {"engine": "gemini", "position": "append", "type": "paragraph", }
+
 
     ]
     conf["prompts"]["strict"] = [
         {
-            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags.\n\n ",
-            "temperature": "0.2", "top_k": "1", "top_p": "0.4"
+            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags and characters that are in roman/latin  unchanged.\n\n ",
+            "temperature": "0.2", "top_k": "1", "top_p": "0.4",
+            "engine": "gemini", "position": "append", "type": "footnote", "label": "more litteral",
+            "max_tokens": 1400,     # decides how many paragraphs will be send at one time to the AI. 1 = each separatly, 1400 = approx 4 pages of text
         },
-        {"engine": "gemini", "position": "append", "type": "footnote", "label": "more litteral"}
     ]
     conf["prompts"]["creative"] = [
         {
-            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags.\n\n ",
-            "temperature": "1.0", "top_k": "3", "top_p": "0.4"
+            "prompt": "translate the text into english. do not include any explanations, just translate. keep html tags and characters that are in roman/latin  unchanged.\n\n ",
+            "temperature": "1.0", "top_k": "3", "top_p": "0.4",
+            "engine": "gemini", "position": "append", "type": "footnote", "label": "more readable",
+            "max_tokens": 1400,     # decides how many paragraphs will be send at one time to the AI. 1 = each separatly, 1400 = approx 4 pages of text
         },
-        {"engine": "gemini", "position": "append", "type": "footnote", "label": "more readable"}
     ]
     # conf["prompts"]['lern'] = [ "go paragraph by paragraph and explain ideoms and slang terms from each paragraph. keep html tags.\n\n ", "1.0", "3", "0.4", {"position":"append","type":"footnote","label":"details"}]
 
@@ -203,10 +216,11 @@ def save_blocks(text):
 
 def save_error(text):
     files['error_out'].write(text)
-
+    files['error_out'].flush()
 
 def save(text):
     files['out'].write(text)
+    files['out'].flush()
 
 
 def wrap_text(text):
@@ -245,7 +259,13 @@ def load_and_split_text(filename, delimiter="\n", max_tokens=1000):
         content = file.read()
         # blocks = content.split(delimiter)
         # blocks = re.split(delimiter, content, flags=re.MULTILINE)
-        blocks = my_text.split_text_by_tokens(content, max_tokens=max_tokens, delimiter="\n\n")
+
+        # reduce all paragraph spacing to only one empty line in between - gemini will get confused otherwise with the paragraph count
+        content = re.sub(r'(\n[ \t]*)+\n', '\n\n', content)
+        content = re.sub(r'\t', ' ', content)
+        content = re.sub(r"^\s+|\s+$", "", content)
+
+        blocks = my_text.split_text_by_tokens(content, max_tokens=max_tokens, delimiter="\n\n", add_paragraph_tag=True)
         # blocks = re.findall(delimiter, content, flags=re.MULTILINE)
         # remove whitespace at beginning of the lines
         for i in range(0, len(blocks)):
@@ -302,6 +322,8 @@ def translate_block(workload_item, conf):
     stat['failed'] = 0
     stat['tokens_send'] = 0
     stat['tokens_received'] = 0
+    stat['error_message'] = []
+    stat['failed_block_nr'] = None
 
 
     # unpack the workload_item tuple (needs to be passed as tuple to run in parallel process)
@@ -322,7 +344,7 @@ def translate_block(workload_item, conf):
         config_pr = pValue[0]
         config = pValue[1]
         # if setting engine is
-        if config["engine"] == "pythainpl_dict_paiboon":
+        if config["engine"] == "transliterate__pythainpl_dict_paiboon":
             # raise AttributeError('no answer')
             # print(f"Block {block_nr}: transliteration start")
             text = my_transliteration_paiboon.tokenize_and_transliterate(block)
@@ -341,15 +363,17 @@ def translate_block(workload_item, conf):
                                        top_k=int(config_pr['top_k']),
                                        top_p=float(config_pr['top_p']),
                                        safty=conf['safty'])
+
                     stat['requests'] += 1
                     text = res.text
 
                     count = len(my_text.split_paragraphs(text))
                     if paragraphs_org != count:
-                        e = f"    Block {block_nr} {pKey}: paragraph missmatch {attempt + 1}x"
+                        e = f"    Block {block_nr} {pKey}: paragraph missmatch {attempt + 1}x (pause tread {conf['pause_between_retries']}s) "
                         print(e)
-                        save_error(e + "\n\n" + text + "\n\n")
+                        stat['error_message'].append(e + "\n\n" + text + "\n\n")
                         stat['retries'] += 1
+                        time.sleep(int(conf['pause_between_retries']))
                         continue
 
                     T_in = my_text.token_count(prompt)
@@ -368,21 +392,38 @@ def translate_block(workload_item, conf):
                     break
                 except Exception as e:
                     # print(f"An error occurred: {e}")
+                    try:
+                        # Attempt to access res and possibly res.candidates
+                        if hasattr(res, 'prompt_feedback'):
+                            err = my_text.remove_newline(str(res.prompt_feedback))
+                        else:
+                            # print("res exists, but it does not have a candidates attribute.")
+                            err = ''
+                    except NameError:
+                        # print("res does not exist.")
+                        err = ''
 
-                    print(f"    Block {block_nr} {pKey}: no Answer {attempt + 1}x")
+                    m = f"    Block {block_nr} {pKey}: no / partial Answer {attempt + 1}x (pause tread {conf['pause_between_retries']}s) {err}"
+                    print(m)
+                    stat['error_message'].append(f"{m}\n")
                     stat['retries'] += 1
+                    time.sleep(int(conf['pause_between_retries']))
 
-            else:
-                text = "Warning: engine not found"
-                collect[pKey] = text
-                success = True
+        else:
+            text = f"Warning: engine {pKey} not found"
+            collect[pKey] = text
+            success = True
 
-            if success == False:
-                collect[pKey] = ""
-                t_console = my_text.remove_html_tags(block)
-                t_console = my_text.remove_newline(t_console)
-                print(f"!! Block {block_nr} {pKey}: translation failed: {t_console[0:30]}..")
-                stat['failed'] += 1
+        if success == False:
+            collect[pKey] = ""
+            t_console = my_text.remove_html_tags(block)
+            t_console = my_text.remove_newline(t_console, separator=" ")
+
+            m = f"  !!translation failed! Block {block_nr} {pKey}: "
+            print(f"{m} {t_console[0:30]}..")
+            stat['error_message'].append(f"{m} {t_console[0:150]}\n")
+            stat['failed'] += 1
+            stat['failed_block_nr'] = block_nr
 
     return block_nr, collect, stat
 
@@ -401,12 +442,12 @@ def translate_blocks(blocks, start=0, end=10000):
     #pycharm doesnt like to debug multiprocess, so if debuging -> single process
     if conf['debug']:
         results = []
-        for i in range(0, end - start):
+        for i in range(start, end):
             work = (blocks[i], i, len(oBlocks))
             results.append(translate_block(work, conf))
 
     else:
-        workload = [(blocks[i], i, len(oBlocks)) for i in range(0, end - start)]  # 12 prompts
+        workload = [(blocks[i], i, len(oBlocks)) for i in range(start, end )]  # 12 prompts
 
         # Use ProcessPoolExecutor to run tasks in separate processes
         with concurrent.futures.ProcessPoolExecutor(conf['max_workers']) as executor:
@@ -423,6 +464,9 @@ def translate_blocks(blocks, start=0, end=10000):
         stats['total_failed'] += s['failed']
         stats['total_tokens_send'] += s['tokens_send']
         stats['total_tokens_received'] += s['tokens_received']
+        save_error(" ".join(s['error_message']))
+        if s['failed_block_nr'] is not None:
+            stats['failed_blocks'].append(s['failed_block_nr'])
 
     return oBlocks
 
@@ -434,7 +478,7 @@ def main():
 
     filename = conf['project_name'] + "/input.txt"
     # blocks = load_and_split_text(filename, delimiter='----')
-    blocks = load_and_split_text(filename, delimiter="\n\n", max_tokens=1500)
+    blocks = load_and_split_text(filename, delimiter="\n\n", max_tokens=conf['max_tokens_per_block'])
     # for block in blocks:
     #     print(' >'+block+'\n')
 

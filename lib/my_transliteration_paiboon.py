@@ -15,7 +15,11 @@ from pythainlp.transliterate import romanize
 # 3.3.2024 data from https://thai-notes.com/tools/thai2ipa.data
 template_file = "lib/thai2ipa.data"
 with codecs.open(template_file, 'r', encoding='utf8') as f:
-    lines = f.read().splitlines()
+    lines_org = f.read().splitlines()
+template_file = "lib/thai2ipa_add.data"
+with codecs.open(template_file, 'r', encoding='utf8') as f:
+    lines_add = f.read().splitlines()
+lines = lines_org + lines_add
 data = {}
 for t in lines:
     w = t.split('\t')

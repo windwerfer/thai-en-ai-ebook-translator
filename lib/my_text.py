@@ -117,9 +117,9 @@ def remove_html_tags(text):
     pattern = r"<.*?>"
     return re.sub(pattern, "", text)
 
-def remove_newline(text):
+def remove_newline(text, separator=" "):
     pattern = r"\n"
-    return re.sub(pattern, "", text)
+    return re.sub(pattern, separator, text)
 
 
 def repare_tags(text):
@@ -184,7 +184,10 @@ def split_text_by_tokens(text, max_tokens=1000, delimiter="\n\n", add_paragraph_
 
     for i in range(0, len(paragraphs)):
         paragraph = paragraphs[i]
-        paragraph_tag = f"<p id='Pa_{i}'></p>"
+        if add_paragraph_tag:
+            paragraph_tag = f"<p id='Pa_{i}'></p>"
+        else:
+            paragraph_tag = ""
         if token_count_thai1(current_block) + token_count_thai1(paragraph) <= max_tokens:
             current_block += paragraph_tag + paragraph.strip() + delimiter  # Add paragraph with a newline
         else:
