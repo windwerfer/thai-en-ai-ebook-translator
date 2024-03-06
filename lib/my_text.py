@@ -162,6 +162,43 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", use_html_tag_guides=False, trim
 
     return paragraph
 
+def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True):
+    paragraph_groups = []
+    current_group = []
+    current_group_chars = 0
+    previous_added_paragraph = 0
+
+    for i in range(len(paragraphs)):
+        # check if paragraph was already processed by prompt_name
+        # and ignore block if already processed
+        if prompt_name in paragraphs[i] and paragraphs[i][prompt_name]['success'] and process_only_unfinished:
+            continue
+
+        #test for only creating continous blocks (simulates paragraph successfully queried)
+        # if i == 3 or i == 5:
+        #     continue
+
+        # Check if adding the current paragraph exceeds the max_tokens limit
+        #  or: check that it is a continous block of paragraphs
+        current_paragraph_char = len(paragraphs[i]['original']['text'])
+        if current_group_chars + current_paragraph_char > max_tokens or previous_added_paragraph+1 != i:
+            # If current group is not empty, add list id to paragraph_groups
+            if current_group:
+                paragraph_groups.append(current_group)
+            # Start a new group with the current paragraph
+            current_group = [i]
+            current_group_chars = current_paragraph_char
+        else:
+            # Add paragraph to the current group
+            current_group.append(i)
+            current_group_chars += current_paragraph_char
+        previous_added_paragraph = i
+
+    # Add the last group if it's not empty
+    if current_group:
+        paragraph_groups.append(current_group)
+
+    return paragraph_groups
 
 def split_text_by_tokens(text, max_tokens=1000, delimiter="\n\n", add_paragraph_tag=True):
     """Splits a long text into blocks of approximately max_chars characters,
