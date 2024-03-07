@@ -19,7 +19,7 @@ from lib import my_transliteration_paiboon
 from lib import my_grab_urls
 
 import time
-
+import pprint
 
 def init_config():
     global conf, stats, files
@@ -29,6 +29,7 @@ def init_config():
     stats['total_requests'] = 0
     stats['total_success'] = 0
     stats['total_failed'] = 0
+    stats['total_paragraph_missmatch'] = 0
     stats['total_retries'] = 0
     stats['total_tokens_send'] = 0
     stats['total_tokens_received'] = 0
@@ -40,9 +41,13 @@ def init_config():
     conf['start_block'] = 31  # start at 0
     conf['end_block'] = 60  # put in 9999 for the end of the book
     conf['max_attempts'] = 15  # maximum retries to send to an AI before giving up
-    conf['max_workers'] = 20
     conf['pause_between_retries'] = 5
     conf['max_tokens_per_query'] = 1500
+    conf['pickle_paragraphs_every_X_successfull_querys'] = 20
+    conf['max_workers'] = 5         #nr of queries run simultaniusly
+    if is_debugger_enabled():
+        print('debuger enbled -> set max_workers to 1')
+        conf['max_workers'] = 1     #run only one process if debugging, otherwise the other elements in the queue will finish before debugin is stoped -> error
 
     conf['debug'] = True  # debugger_is_active()    # i couldn't get the debug check to work.. do manually
     conf['debug'] = False  # debugger_is_active()    # i couldn't get the debug check to work.. do manually
@@ -126,8 +131,11 @@ def run_command(command):
 
 
 def is_debugger_enabled():
+    """ checks if pycharm started this script through debugger or run mode (sets the env variable) """
     return 'PYDEVD_LOAD_VALUES_ASYNC' in os.environ
 
+def pp(arr):
+    pprint.pprint(arr)
 
 def wrap_text(text):
     """for Termnial output: Wraps text to the specified width, breaking lines at word boundaries."""
@@ -145,22 +153,22 @@ def wrap_text(text):
 
 def pickle_paragraphs(project_dir):
     global paragraphs
-    file = '{project_dir}/saved_paragraphs.pickle'
+    file = f'{project_dir}/saved_paragraphs.pickle'
     with open(file, 'wb') as f:
         pickle.dump(paragraphs, f)
 
 def pickle_paragraphs_exists(project_dir):
-    file = '{project_dir}/saved_paragraphs.pickle'
+    file = f'{project_dir}/saved_paragraphs.pickle'
     return os.path.exists(file)
 
 def unpickle_paragraphs(project_dir):
     global paragraphs
-    file = '{project_dir}/saved_paragraphs.pickle'
+    file = f'{project_dir}/saved_paragraphs.pickle'
     with open(file, 'rb') as f:
         return pickle.load(f)
 
 
-def query_gemini(prompt, temperature=0.5, top_p=0.3, top_k=1, safety=None):
+def query_gemini(prompt_text, temperature=0.5, top_p=0.3, top_k=1, safety=None):
     """ sends a prompt to gemini and returns the result """
 
     if safety is None:
@@ -185,7 +193,7 @@ def query_gemini(prompt, temperature=0.5, top_p=0.3, top_k=1, safety=None):
         top_p=top_p,  # Set top_p, default: 1.0
     )
 
-    response = model.generate_content(prompt, safety_settings=safety, generation_config=generation)
+    response = model.generate_content(prompt_text, safety_settings=safety, generation_config=generation)
     return response
 
 
@@ -304,7 +312,7 @@ def load_paragraphs(filename, delimiter='\n\n'):
     return paragraphs
 
 
-def create_queries(paragraphs, prompts, prompts_to_process):
+def create_paragraph_groups(paragraphs, prompts, prompts_to_process):
     for prompt_name, l in prompts_to_process.items():
         if prompt_name in prompts:
             print(f'prompt {prompt_name} will be processed')
@@ -316,12 +324,88 @@ def create_queries(paragraphs, prompts, prompts_to_process):
             print(f'prompt id: {prompt_name} not found')
     return prompts_to_process
 
+def group_query_ai(query):
+    paragraphs_slice, group, prompt_name, prompt, conf = query
 
-def run_queries(prompt_list, paragraphs):
+    text_group = ''
+    for idx, p in enumerate(paragraphs_slice):
+        text_group = text_group + f'\n\n{p["original"]["text"]}'
+
+    #remove the 2 empty newlines at the beginning
+    text_group = text_group[2:]
+
+    ret = text_group.split('\n\n')
+
+    t = f'{prompt_name} + {paragraphs_slice[0]}'
+    return ret
+
+def run_queries(paragraph_groups, paragraphs, prompts):
     """  takes the paragraph list indexes from prompt_list and creates textblocks
             those textblocks will be sent to an AI (gemini only at the moment)
             after they arrive back, they will be transfered into the paragraphs variable
      """
+
+    global stats, conf
+
+    querys = []
+
+
+    # run as multiple processes
+    for prompt_name, groups in paragraph_groups.items():
+        for group in groups:
+            # assuming that each group is continuous (required when creating) the slice is done by using the first and last item of the group
+            paragraphs_slice = paragraphs[group[0]:group[-1]+1]
+
+
+
+            # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original paragraphs list and the prompt that will be processed
+            querys.append([paragraphs_slice, group, prompt_name, prompts[prompt_name], conf])
+
+
+    # Create a ProcessPoolExecutor with a maximum of 3 processes
+    with ProcessPoolExecutor(max_workers=conf['max_workers']) as executor:
+        # Submit the tasks to the executor
+        future_to_prompt = {executor.submit(group_query_ai, query): idx for idx, query in enumerate(querys)}
+        for future in as_completed(future_to_prompt):
+            idx = future_to_prompt[future]
+            stats['total_requests'] += 1
+
+            try:
+                # Get the result of the query
+                result = future.result()
+                if result is None:
+                    # query failed, log to stats
+                    stats['total_failed'] += 1
+                # if the len of the result is equal the len of the second element of the in the querys list (= group)
+                elif len(result) == len(querys[idx][1]):
+                    # paragraphs match, probably correct
+                    stats['total_success'] += 1
+
+                    # integrate into paragraphs
+                    for j, i in enumerate(querys[idx][1]):
+                        paragraphs[i][querys[idx][2]] = {}
+                        paragraphs[i][querys[idx][2]]['text'] = result[j]
+                        paragraphs[i][querys[idx][2]]['success'] = True
+                        paragraphs[i][querys[idx][2]]['processed_in_paragraph_group'] = querys[idx][1]
+                        paragraphs[i][querys[idx][2]]['prompt'] = [querys[idx][2], querys[idx][3]]
+
+                    conf = querys[idx][4]
+
+                    # pickle paragraphs from time to time -> no loss on errors
+                    if stats['total_success'] % conf['pickle_paragraphs_every_X_successfull_querys'] == 0:
+                        pickle_paragraphs(conf['project_name'])
+                else:
+                    stats['total_paragraph_missmatch'] += 1
+
+                print(f"Result for prompt '{querys[idx][1]}': {" -- ".join(result)[0:40]}")
+
+            except Exception as e:
+
+                print(f"An error occurred while querying '{querys[idx][1]}': " + str(e))
+
+    pickle_paragraphs(conf['project_name'])
+
+
 
 
     return paragraphs
@@ -344,9 +428,9 @@ def main():
     # returns a list of queries: [{paragraphs: list_of_paragraph_ids, model: AI model to query,
     #                               prompt: prompt_text+some_paragraphs,
     #                               temperature: float, top_k=int, top_p=float}
-    prompt_list = create_queries(paragraphs, conf['prompts'], prompts_to_process)
+    paragraph_groups = create_paragraph_groups(paragraphs, conf['prompts'], prompts_to_process)
 
-    paragraphs = run_queries(paragraphs, prompt_list)
+    paragraphs = run_queries(paragraph_groups, paragraphs, conf['prompts'])
 
 
 if __name__ == '__main__':

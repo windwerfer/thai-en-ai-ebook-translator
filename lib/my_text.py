@@ -171,7 +171,8 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
     for i in range(len(paragraphs)):
         # check if paragraph was already processed by prompt_name
         # and ignore block if already processed
-        if prompt_name in paragraphs[i] and paragraphs[i][prompt_name]['success'] and process_only_unfinished:
+        if prompt_name in paragraphs[i] and 'success' in paragraphs[i][prompt_name] and \
+                paragraphs[i][prompt_name]['success'] and process_only_unfinished:
             continue
 
         #test for only creating continous blocks (simulates paragraph successfully queried)
