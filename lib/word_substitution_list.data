@@ -1,3 +1,10 @@
+# this file contains a list of words that will be replaced by default before they are send to
+#  translate. it does not influence the transliteration.
+#  format: word,substitution
+#  comments: # as first character in the line
 บ่อ,Baw
+พระอาจารย์,Ajahn
 อาจารย์,Ajahn
-หลวงปู่,Luang Phu
+หลวงปู่,Ajahn
+พระอาจารย์มั่น,Ajahn Mun
+# ห,h

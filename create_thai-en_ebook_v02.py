@@ -11,6 +11,7 @@ import shutil
 import subprocess  # to run a command in the terminal: run_command()
 import textwrap
 import time
+import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 
@@ -27,13 +28,15 @@ def init_config():
     conf = {}
     conf['project_name'] = 'prj_lp_choob_02'
 
-    conf['start_block'] = 31  # start at 0
-    conf['end_block'] = 60  # put in 9999 for the end of the book
-    conf['max_attempts'] = 15  # maximum retries to send to an AI before giving up
-    conf['pause_between_retries'] = 5
     conf['max_tokens_per_query__gemini'] = 1400
-    conf['pickle_paragraphs_every_X_successfull_querys'] = 20
     conf['max_workers'] = 10  # nr of queries run simultaniusly
+    conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
+    # conf['start_block'] = 31  # start at 0
+    # conf['end_block'] = 60  # put in 9999 for the end of the book
+    # conf['max_attempts'] = 15  # maximum retries to send to an AI before giving up
+    # conf['pause_between_retries'] = 5
+    # conf['pickle_paragraphs_every_X_successfull_querys'] = 20
+
     if is_debugger_enabled():
         print('debuger enbled -> set max_workers to 1')
         conf[
@@ -85,8 +88,8 @@ def init_config():
                            'condition is met. do not print text in square brackets.'
 
     conf['prompts']['gemini_default_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. keep paragraphs divided by newline.\n\n ',
-        'temperature': '0.6', 'top_k': '2', 'top_p': '0.4', 'engine': 'gemini', 'position': 'append',
+        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+        'temperature': '0.5', 'top_k': '4', 'top_p': '0.45', 'engine': 'gemini', 'position': 'append',
         'type': 'paragraph', 'use_word_substitution_list': 'default', 'use_word_annotation_list': 'default',
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
@@ -94,7 +97,7 @@ def init_config():
     }
 
     conf['prompts']['gemini_literal_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. keep paragraphs divided by newline.\n\n ',
+        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
         'temperature': '0.2', 'top_k': '1', 'top_p': '0.4',
         'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more literal',
         'use_word_substitution_list': 'default',
@@ -103,8 +106,8 @@ def init_config():
     }
 
     conf['prompts']['gemini_creative_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. keep paragraphs divided by newline.\n\n ',
-        'temperature': '1.0', 'top_k': '3', 'top_p': '0.4',
+        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+        'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
         'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
         'use_word_substitution_list': 'default',
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
@@ -112,7 +115,7 @@ def init_config():
     }
 
     conf['prompts']['gemini_k.rob_creative02'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. keep paragraphs divided by newline.\n\n ',
+        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
         'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
         'use_word_substitution_list': 'default',
@@ -129,6 +132,7 @@ def init_config():
     stats['total_requests'] = 0
     stats['total_success'] = 0
     stats['total_failed'] = 0
+    stats['total_blocked'] = 0
     stats['total_paragraph_missmatch'] = 0
     stats['total_retries'] = 0
     stats['total_tokens_send'] = 0
@@ -142,7 +146,7 @@ def load_word_substitution_list(file_name='lib/word_substitution_list.data'):
     data = {}
     for t in lines:
         w = t.split(',', 1)
-        if len(w) != 2:
+        if len(w) != 2 or w[0][0:1] == '#':
             continue
         data[w[0]] = w[1]
     return data
@@ -156,6 +160,13 @@ def load_word_translation_annotation_list(file_name='lib/word_translation_annota
         w = t.split(',', 1)
         data[w[0]] = f"'{w[0]}': {w[1]}"
     return data
+
+def replace_with_word_substitution_list(text):
+    dic = conf['word_substitution_list']
+    for pattern, repl in dic.items():
+        text = re.sub(pattern, repl, text)
+    return text
+
 
 
 def run_command(command):
@@ -279,10 +290,18 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
         s = 'unusual error: ' + str(e)
         finish_reason = (-2, s)
 
-    time.sleep(1)
-
-    return {'text': text, 'success': success, 'finish_reason': finish_reason, 'safety_block': safety_block,
+    # time.sleep(1)
+    ret = [ text, success, finish_reason, safety_block, safety_rating]
+    ret = {'text': text, 'success': success, 'finish_reason': finish_reason, 'safety_block': safety_block,
             'safety_rating': safety_rating}
+
+    # Generate a random float number between 1 and 3
+    pause_time = random.uniform(1, 3)
+
+    # Pause execution for the generated duration
+    time.sleep(pause_time)
+
+    return ret
 
 
 def format_stats(stats, conf):
@@ -303,8 +322,9 @@ def format_stats(stats, conf):
         seconds_per_prompt = round(execution_time / stats['total_requests'], 3)
 
     prompts_stats = ""
-    for key, values in conf['prompts'].items():
-        c = values[0]
+    for key, c in conf['prompts'].items():
+        if key == 'transliterate':
+            continue
         prompts_stats = (
                 prompts_stats
                 + f"""
@@ -315,32 +335,37 @@ def format_stats(stats, conf):
         """
         )
 
-    stats_text = f"""
+    stats_text1 = f"""
 
-    # statistics
+    -----
 
-    **Ai Model** 
+    **Ai Model / Prompts** 
 
     {prompts_stats}
 
-    ----
-
+    """
+    stats_text2 = f"""
+    
+     # statistics
+    
     sum tokens prompt: {stats['total_tokens_send']}  \\
     sum tokens response (only translation): {stats['total_tokens_received']}  \\
-
+    (only counting successful question-answer pairs)
+    
     ----
 
-    total ecexution time: {h}:{m}:{s}  \\
+    total execution time: {h}:{m}:{s}  \\
     total prompts send to AI: {stats['total_requests']}  \\
-    total successfull prompts (retries): {stats['total_success']}  \\
+    total successful prompts: {stats['total_success']}  \\
+    total blocked prompts (harassment etc): {stats['total_blocked']}  \\
+    total paragraph mismatches: {stats['total_paragraph_missmatch']}  \\
     total failed prompts (retries): {stats['total_retries']}  \\
-    total failed prompts (given up on): {stats['total_failed']}  \\
+    total failed prompts (misc errors eg quota / timeout): {stats['total_failed']}  \\
     average seconds per prompt: {seconds_per_prompt}  \\
-
 
     """
 
-    return stats_text
+    return (stats_text1, stats_text2)
 
 
 def generate_pandoc_cmd(file):
@@ -387,7 +412,7 @@ def load_paragraphs(filename, delimiter='\n\n'):
 
         paragraphs = []
 
-        for s in spl:
+        for i, s in spl.items():
             # remove spaces at the beginning of a paragraph
             s = re.sub(r'^[ ]+', '', s, flags=re.MULTILINE)
 
@@ -419,30 +444,41 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
     return prompts_to_process
 
 
-def group_query_ai(query):
-    paragraphs_slice, group, prompt_name, prompt, conf, query_id = query
+def group_query_ai(query, send_with_paragraph_id=True):
+    paragraphs_slice, paragraph_ids_group, prompt_name, prompt, conf, query_arg_id = query
 
-    print(f'   paragraph group {group[0]:>4}:{group[-1]:>4} - query nr {query_id + 1:>4}: start')
+    print(f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - query nr {query_arg_id + 1:>4}: start')
 
     text_group = ''
-    for idx, p in enumerate(paragraphs_slice):
-        text_group = text_group + f'\n\n{p["original"]["text"]}'
+    for paragraph_id in paragraphs_slice:
+        if send_with_paragraph_id:
+            text_group = text_group + f'\n\n{paragraph_id}. {paragraphs_slice[paragraph_id]}'
+        else:
+            text_group = text_group + f'\n\n{paragraphs_slice[paragraph_id]}'
 
     # remove the 2 empty newlines at the beginning
     text_group = text_group[2:]
 
     # ask google
     if prompt['engine'] == 'gemini':
-        ret = query_gemini(prompt['prompt'] + text_group, temperature=float(prompt['temperature']),
-                           top_k=int(prompt['top_k']),
-                           top_p=float(prompt['top_p']))
+        try:
+            p1 = prompt['prompt'] + text_group
+            ret = query_gemini(p1, temperature=float(prompt['temperature']),
+                               top_k=int(prompt['top_k']),
+                               top_p=float(prompt['top_p']))
+
     # r = "\n\n".split(ret)
 
-    ret['texts'] = my_text.split_paragraphs(ret['text'])
+            ret['paragraphs'] = my_text.split_paragraphs(ret['text'], send_with_paragraph_id=send_with_paragraph_id)
+            ret['paragraph_ids_group'] = paragraph_ids_group
+            ret['query_arg_id'] = query_arg_id
+            ret['prompt_name'] = prompt_name
+            ret['text_send'] = p1
 
-    # t = f'{prompt_name} + {paragraphs_slice[0]}'
-
-    # safety ratings..
+        # t = f'{prompt_name} + {paragraphs_slice[0]}'
+        except Exception as e:
+            print(e)
+        # safety ratings..
     # https://ai.google.dev/docs/safety_setting_gemini
 
     return ret
@@ -456,90 +492,146 @@ def run_queries(paragraph_groups, paragraphs, prompts):
 
     global stats, conf
 
-    querys = []
+    query_args = []
     err = []  # format: [origin_text: , answer_text: , error_message]
+    group_entry_count = 0
 
     # run as multiple processes
-    for prompt_name, groups in paragraph_groups.items():
-        for group in groups:
-            # assuming that each group is continuous (required when creating) the slice is done by using the first and last item of the group
-            paragraphs_slice = paragraphs[group[0]:group[-1] + 1]
+    for prompt_name, group in paragraph_groups.items():
+        for paragraph_ids_group in group:
+            # assuming that each group is continuous (required when creating) the slice is done by using the first
+            #  and last item of the group
+            paragraphs_slice = {}
+            for i in range(paragraph_ids_group[0], paragraph_ids_group[-1] + 1):
+                paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'])
 
-            # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original paragraphs list and the prompt that will be processed
-            querys.append([paragraphs_slice, group, prompt_name, prompts[prompt_name], conf])
+
+
+            # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original
+            #  paragraphs list and the prompt that will be processed
+            query_args.append([paragraphs_slice, paragraph_ids_group, prompt_name, prompts[prompt_name], conf])
+            group_entry_count += 1
+
+            # development: limit groups to process..
+            if group_entry_count >= conf['max_groups_to_process']:
+                break
+        if group_entry_count >= conf['max_groups_to_process']:
+            break
 
     # Create a ProcessPoolExecutor with a maximum of 3 processes
     with ProcessPoolExecutor(max_workers=conf['max_workers']) as executor:
         # Submit the tasks to the executor
-        future_to_prompt = {executor.submit(group_query_ai, query + [query_id]): query_id for query_id, query in
-                            enumerate(querys)}
+        future_to_prompt = {executor.submit(group_query_ai, query_arg + [query_arg_id]): query_arg_id
+                            for query_arg_id, query_arg in enumerate(query_args)}
+
         for future in as_completed(future_to_prompt):
-            querys_id = future_to_prompt[future]
+            query_arg_id = future_to_prompt[future]
             stats['total_requests'] += 1
 
             try:
                 # Get the result of the query
                 result = future.result()
-                if not result['success']:
-                    # query failed, log to stats
-                    stats['total_failed'] += 1
-                    print(
-                        f' paragraph group {querys[querys_id][1][0]:>4}:{querys[querys_id][1][-1]:>4} - query nr {querys_id + 1:>4}: failed (finish reason {result['finish_reason']})')
-                # if the len of the result is equal the len of the second element of the in the querys list (= group)
-                elif len(result['texts']) == len(querys[querys_id][1]):
-                    # paragraphs match, probably correct
-                    stats['total_success'] += 1
+            except Exception as e:
+                print('error: result not received..' + str(e))
 
-                    prompt_name = querys[querys_id][2]
+            try:
+                if not result['success']:
+                    # i will just add loads of try except statemnets... cant find the error..
+                    try:
+
+                        if result['finish_reason'] == 3:
+                            stats['total_blocked'] += 1
+                        else:
+                            stats['total_failed'] += 1
+                        m = f' [{prompt_name}] group {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4}' + \
+                            f' - query nr {query_arg_id + 1:>4}: failed (finish reason {result['finish_reason']})'
+                        print(m)
+                    except Exception as e:
+                        print("error: could not add to stats['total_failed']")
+                # if the len of the result is equal the len of the second element of the in the querys list (= group)
+                elif len(result['paragraphs']) == len(query_args[query_arg_id][1]):
+                    # paragraphs match, probably correct
+                    try:
+                        stats['total_success'] += 1
+                        stats['total_tokens_send'] += my_text.token_count(result['text_send'])
+                        stats['total_tokens_received'] += my_text.token_count(result['text'])
+                    except Exception as e:
+                        print('error: answer statistics not added')
+
+                    prompt_name = query_args[query_arg_id][2]
 
                     # querys[idx][1]: list of all the paragraph ids, this paragraph_group send to query
                     # j is the id of the paragraph of the paragraph group
-                    for j, paragraph_id in enumerate(querys[querys_id][1]):
+                    for j, paragraph_id in enumerate(query_args[query_arg_id][1]):
+
+                        # check if paragraph numbering from the query is correct
+                        # eg: prompt: '1. หลวงปู่..' -> answer '1. Luang Phu'
                         try:
-                            # try to assign the received paragraph text to paragraphs
-                            paragraphs[paragraph_id][prompt_name]['text'] = result['texts'][j]
-                            paragraphs[paragraph_id][prompt_name]['retries'] += 1
+                            if paragraph_id != query_args[query_arg_id][1][j]:
+                                print(f'paragraph id of answer {paragraph_id} doesnt match the prompt {query_args[query_arg_id][1][j]} -> ignore')
+                                continue
+                            result['paragraphs'][paragraph_id]
                         except KeyError:
+                            print(
+                                "KeyError. probable cause:  result['paragraphs'][paragraph_id] -> if the return query is without correct paragraph numbers eg '45. text..' ")
+
+                        try:
+
+                            paragraphs[paragraph_id][prompt_name]['text']
+                        except KeyError:
+                            paragraphs[paragraph_id][prompt_name] = {}
+                            paragraphs[paragraph_id][prompt_name]['retries'] = 0
+
+                        try:
+                            paragraphs[paragraph_id][prompt_name]['text'] = result['paragraphs'][paragraph_id]
+                            paragraphs[paragraph_id][prompt_name]['retries'] += 1
+
+
                             # if this is the first time the paragraph was sent, the dict for that prompt_name
                             #   has to be created first
                             paragraphs[paragraph_id][prompt_name] = {}
-                            paragraphs[paragraph_id][prompt_name]['text'] = result['texts'][j]
+                            paragraphs[paragraph_id][prompt_name]['text'] = result['paragraphs'][paragraph_id]
+
                             paragraphs[paragraph_id][prompt_name]['retries'] = 0
 
-                        paragraphs[paragraph_id][prompt_name]['success'] = result['success']
-                        paragraphs[paragraph_id][prompt_name]['finish_reason'] = result['finish_reason']
-                        paragraphs[paragraph_id][prompt_name]['safety_block'] = result['safety_block']
-                        paragraphs[paragraph_id][prompt_name]['safety_rating'] = result['safety_rating']
-                        paragraphs[paragraph_id][prompt_name]['processed_in_paragraph_group'] = querys[querys_id][1]
-                        paragraphs[paragraph_id][prompt_name]['prompt'] = [querys[querys_id][2], querys[querys_id][3]]
+                            paragraphs[paragraph_id][prompt_name]['success'] = result['success']
+                            paragraphs[paragraph_id][prompt_name]['finish_reason'] = result['finish_reason']
+                            paragraphs[paragraph_id][prompt_name]['safety_block'] = result['safety_block']
+                            paragraphs[paragraph_id][prompt_name]['safety_rating'] = result['safety_rating']
+                            paragraphs[paragraph_id][prompt_name]['processed_in_paragraph_group'] = query_args[query_arg_id][1]
+                            paragraphs[paragraph_id][prompt_name]['prompt'] = [query_args[query_arg_id][2], query_args[query_arg_id][3]]
+                        except Exception as e:
+                            print('error: couldnt update paragraphs correctly, but succeeded in returning the query')
 
-                    conf = querys[querys_id][4]
 
                     # pickle paragraphs from time to time -> no loss on errors
                     # if stats['total_success'] % conf['pickle_paragraphs_every_X_successfull_querys'] == 0:
                     #     pickle_paragraphs(conf['project_name'])
                     print(
-                        f'   paragraph group {querys[querys_id][1][0]:>4}:{querys[querys_id][1][-1]:>4} - query nr {querys_id + 1:>4}: returned successfully')
+                        f'   [{prompt_name}] group {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4} - query nr {query_arg_id + 1:>4}: returned successfully')
                 else:
-                    stats['total_paragraph_missmatch'] += 1
-                    err_msg = f' paragraph group {querys[querys_id][1][0]:>4}:{querys[querys_id][1][-1]:>4} - query nr {querys_id + 1:>4}: -- mismatched paragraphs'
-                    org_text = ''
-                    for paragraphs_slice in querys[querys_id][0]:
-                        org_text += '\n\n' + paragraphs_slice['original']['text']
-                    err.append([org_text[2:], result['text'], err_msg])
-                    print(err_msg)
+                    try:
+                        stats['total_paragraph_missmatch'] += 1
+                        err_msg = f' [{prompt_name}] group {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4} - query nr {query_arg_id + 1:>4}: -- mismatched paragraphs (log to error.cvs)'
+                        # for paragraphs_slice in query_args[query_arg_id][0]:
+                        #     org_text += '\n\n' + paragraphs_slice['original']['text']
+                        err.append([result['text_send'], result['text'], err_msg])
+                        print(err_msg)
+                    except Exception as e:
+                        print('error: could not process paragraph mismatch')
 
                 # print(f"Result for prompt '{querys[idx][1]}': {" -- ".join(result)[0:40]}")
-
+            except KeyError as e:
+                print('dict key wrong: '+str(e))
             except Exception as e:
 
                 print(
-                    f"unusual error paragraph group {querys[querys_id][1][0]:>4}:{querys[querys_id][1][-1]:>4} - query nr {querys_id + 1:>4}: " + str(
+                    f"unusual error paragraph group - very general.. - [{prompt_name}] {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4} - query nr {query_arg_id + 1:>4}: " + str(
                         e))
 
-    pickle_paragraphs(conf['project_name'])
 
-    save_matrix_to_cvs(f'{conf['project_name']}/error.csv', err)
+    if len(err) > 0:
+        save_matrix_to_cvs(f'{conf['project_name']}/error.csv', err)
 
     return paragraphs
 
@@ -619,19 +711,23 @@ def compile_paragraph_statics(paragraphs, prompts):
                 stats[prompt_name]['success'] += 1
             else:
                 stats[prompt_name]['failed'] += 1
-            stats[prompt_name]['retries'] += p[prompt_name]['retries']
-            if p[prompt_name]['safety_block']:
+            if 'retries' in p[prompt_name]:
+                stats[prompt_name]['retries'] += p[prompt_name]['retries']
+            else:
+                stats[prompt_name]['retries'] = 0
+            if 'safety_block' in p[prompt_name] and p[prompt_name]['safety_block']:
                 stats[prompt_name]['failed_because_of_safety'] += 1
-            if p[prompt_name]['finish_reason'][0] == 2:
+            if 'finish_reason' in p[prompt_name] and p[prompt_name]['finish_reason'][0] == 2:
                 stats[prompt_name]['failed_because_of_token_max'] += 1
-            if p[prompt_name]['finish_reason'][0] == -2:
+            if 'finish_reason' in p[prompt_name] and p[prompt_name]['finish_reason'][0] == -2:
                 stats[prompt_name]['failed_because_of_unknown'] += 1
 
             # add on point to the appropriate element
-            for s in p[prompt_name]['safety_rating']:
-                category = s[2] - 7
-                rating = s[3] - 1
-                stats[prompt_name]['safety_stat'][category][rating] += 1
+            if 'safety_rating' in p[prompt_name]:
+                for s in p[prompt_name]['safety_rating']:
+                    category = s[2] - 7
+                    rating = s[3] - 1
+                    stats[prompt_name]['safety_stat'][category][rating] += 1
 
     return stats
 
@@ -735,9 +831,11 @@ def load_and_process_paragraphs(prompts_to_process):
 
         if 'transliterate' in prompts_to_process:
             for i, p in enumerate(paragraphs):
-                paragraphs[i]['transliterate'] = {
-                    'text': my_transliteration_paiboon.tokenize_and_transliterate(paragraphs[i]['original']['text'])}
+                if 'transliterate' not in paragraphs[i]:
+                    paragraphs[i]['transliterate'] = {
+                        'text': my_transliteration_paiboon.tokenize_and_transliterate(paragraphs[i]['original']['text'])}
 
+        pickle_paragraphs(conf['project_name'])
 
 def save_paragraphs_to_epub(prompts_to_display, date_str):
     final_text = merge_paragraphs(paragraphs, prompts_to_display)
@@ -749,15 +847,17 @@ def save_paragraphs_to_epub(prompts_to_display, date_str):
         file.write(final_text)
 
     create_epub(file_name, conf["project_name"], date_str)
+    print(f"File '{file_name}' saved successfully.")
 
 
-def save_matrix_to_cvs(file_name, l):
-    ma = []
-    for row in l:
-        row = []
-        for cell in row:
-            row.append(cell)
-        ma.append(row)
+def save_matrix_to_cvs(file_name, li):
+    # li is already in the correct format - funny
+    # ma = []
+    # for row in l:
+    #     r = []
+    #     for cell in row:
+    #         r.append(cell)
+    #     ma.append(r)
 
     # file_name = f'{conf['project_name']}/{conf['project_name']}_{date_str}.csv'
     # Open the file in write mode ('w') and create a csv.writer object
@@ -766,12 +866,12 @@ def save_matrix_to_cvs(file_name, l):
         writer = csv.writer(file)
 
         # Write all rows at once
-        writer.writerows(ma)
+        writer.writerows(li)
 
     print(f"File '{file_name}' saved successfully.")
 
 
-def save_paragraphs_to_cvs(prompts_to_display, date_str):
+def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
     global conf, paragraphs
 
     c = [prompts_to_display]
@@ -789,7 +889,9 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str):
                 row.append('')
 
         c.append(row)
-
+    stat_strs = stat_str.split('\n')
+    for s1 in stat_strs:
+        c.append([s1])
     file_name = f'{conf['project_name']}/{conf['project_name']}_{date_str}.csv'
     # Open the file in write mode ('w') and create a csv.writer object
     # Ensure to open the file with newline='' to prevent adding extra newline characters on Windows
@@ -805,10 +907,10 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str):
 if __name__ == '__main__':
     init_config()
 
-    prompts_to_process = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03']
     prompts_to_process = ['gemini_k.rob_creative02']
     prompts_to_process = ['gemini_default_2024.03']
+    prompts_to_process = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
+                          'gemini_creative_2024.03','gemini_k.rob_creative02']
 
     load_and_process_paragraphs(prompts_to_process)
     # load_and_process_paragraphs(prompts_to_process)
@@ -824,4 +926,9 @@ if __name__ == '__main__':
 
     prompts_to_display = ['original', 'transliterate', '', 'gemini_default_2024.03', 'gemini_literal_2024.03',
                           'gemini_creative_2024.03', 'gemini_k.rob_creative02']
-    # save_paragraphs_to_cvs(prompts_to_display, date_str)
+
+    stat_text_prompts, stat_text_execution = format_stats(stats, conf)
+    save_paragraphs_to_cvs(prompts_to_display, date_str, stat_text_prompts + stat_text_execution)
+
+
+    print(stat_text_execution)

@@ -16,10 +16,8 @@
 # import deepcut
 
 
-import importlib
-
-
 import argparse
+import importlib
 import re
 
 
@@ -130,9 +128,11 @@ def token_count(text):
     en = token_count_eng0(text)
     return th + en
 
+
 def remove_html_tags(text):
     pattern = r"<.*?>"
     return re.sub(pattern, "", text)
+
 
 def remove_newline(text, separator=" "):
     pattern = r"\n"
@@ -154,30 +154,58 @@ def repare_tags(text):
 
     return text
 
-def split_paragraphs(text, delimiter="\n[ ]*\n", use_html_tag_guides=False, trim=True):
-    paragraph = re.split(delimiter, text)
-    if trim:
-        for i in range(0, len(paragraph)):
-            paragraph[i] = paragraph[i].strip()
-    if use_html_tag_guides:
-        paragraph_sorted = []
-        for p in paragraph:
+
+def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, use_html_tag_guides=False, trim=True) -> dict:
+    paragraphs_list = re.split(delimiter, text)
+
+    paragraphs = {}
+    # using a simple number list to mark paragraph beginnings
+    if send_with_paragraph_id:
+        for i, paragraph in enumerate(paragraphs_list):
             # find id
-            regex = r"<p id='Pa_(\d+)'></p>"
-            matches = re.findall(regex, p)
+            regex = r"^\s*(\d+)\."
+            matches = re.findall(regex, paragraph)
             if matches:
                 id_p = matches[0]
             else:
                 continue
-
             # remove id tag from p
-            p = re.sub(r"<p id='Pa_\d+'></p>[ ]*", "", p)
+            paragraph = re.sub(r"^\s*(\d+)\.\s*", "", paragraph)
             # insert p in at the right place of the list paragraph_sorted
             # If the index is greater than the length of the list, new elements will be created with the value `None`.
-            paragraph_sorted.insert(int(id_p), p)
-        paragraph = paragraph_sorted
+            try:
+                paragraphs[int(id_p)] = paragraph
+            except ValueError:
+                paragraphs[i] = paragraph
+    # using html tags to mark paragraphs
+    elif use_html_tag_guides:
+        for i, paragraph in enumerate(paragraphs_list):
+            # find id
+            regex = r"<p id='Pa_(\d+)'></p>"
+            matches = re.findall(regex, paragraph)
+            if matches:
+                id_p = matches[0]
+            else:
+                continue
+            # remove id tag from p
+            paragraph = re.sub(r"<p id='Pa_\d+'></p>[ ]*", "", paragraph)
+            # insert p in at the right place of the list paragraph_sorted
+            # If the index is greater than the length of the list, new elements will be created with the value `None`.
+            try:
+                paragraphs[int(id_p)] = paragraph
+            except ValueError:
+                paragraphs[i] = paragraph
 
-    return paragraph
+    # normal return, without modifing the paragraphs, dictionary keys are just 0 to len(paragraphs)
+    else:
+        for i in range(0, len(paragraphs_list)):
+            if trim:
+                paragraphs[i] = paragraphs_list[i].strip()
+            else:
+                paragraphs[i] = paragraphs_list[i]
+
+    return paragraphs
+
 
 def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True):
     paragraph_groups = []
@@ -192,14 +220,14 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
                 paragraphs[i][prompt_name]['success'] and process_only_unfinished:
             continue
 
-        #test for only creating continous blocks (simulates paragraph successfully queried)
+        # test for only creating continous blocks (simulates paragraph successfully queried)
         # if i == 3 or i == 5:
         #     continue
 
         # Check if adding the current paragraph exceeds the max_tokens limit
         #  or: check that it is a continous block of paragraphs
         current_paragraph_tokens = token_count(paragraphs[i]['original']['text'])
-        if current_group_tokens + current_paragraph_tokens > max_tokens or previous_added_paragraph+1 != i:
+        if current_group_tokens + current_paragraph_tokens > max_tokens or previous_added_paragraph + 1 != i:
             # If current group is not empty, add list id to paragraph_groups
             if current_group:
                 paragraph_groups.append(current_group)
@@ -217,6 +245,7 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
         paragraph_groups.append(current_group)
 
     return paragraph_groups
+
 
 def split_text_by_tokens(text, max_tokens=1000, delimiter="\n\n", add_paragraph_tag=True):
     """Splits a long text into blocks of approximately max_chars characters,
