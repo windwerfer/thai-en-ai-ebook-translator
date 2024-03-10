@@ -27,55 +27,25 @@ from lib import my_transliteration_paiboon
 def init_config():
     global conf, stats, files
 
-    # --- process args
-
-    # Create the parser
-    parser = argparse.ArgumentParser(description="This script does something with a name and an input file.")
-
-    # Add the '-p' argument for some name, required
-    h = ('Specify a Project_Name. The script automatically continues where you last left of (after successul script '
-         'execution).')
-    parser.add_argument('-p', type=str, required=True, help=h)
-
-    # Add the '-i' argument for the input file, required
-    h = ('Specify the input file path. Accepted are Text files with a blank line as paragraph divider. Once the file '
-         'is processed, the paragraphs will be stored in [project_folder]/saved_paragraphs.pickle and -i option '
-         'neeeds to be specified any more.')
-    parser.add_argument('-i', type=str, help=h)
-
-    # Parse the arguments
-    args = parser.parse_args()
-
-
-    # --- process args end
+    # --------------------------- user config starts here
 
     conf = {}
-    conf['project_name'] = args.p  # 'prj_lp_choob_02'
-    conf['input_file'] = args.i  # 'prj_lp_choob_02'
 
-    conf['max_tokens_per_query__gemini'] = 1400
-    conf['max_workers'] = 10  # nr of queries run simultaniusly
+    conf[
+        'max_tokens_per_query__gemini'] = 1400  # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
+    conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
 
-
     conf['prompts_to_process'] = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+                                  'gemini_creative_2024.03', 'gemini_k.rob_creative02']
 
     conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
-
-
-
-    # files = {}
-    # files['out'] = open(conf['project_name'] + '/translated.txt', 'w', encoding='utf-8')
-    # files['error_out'] = open(conf['project_name'] + '/errors.txt', 'w', encoding='utf-8')
-    # files['blocks'] = open(conf['project_name'] + '/blocks.txt', 'w', encoding='utf-8')
-
-
+                                  'gemini_creative_2024.03', 'gemini_k.rob_creative02']
 
     conf['prompts'] = {}
 
-    # engine: 'transliterate__pythainpl_dict_paiboon'  ->   uses the pythainpl lib to transliterate
+    # special case: Thai transliteration. processed through pythainlp not gemini
+    # engine: 'transliterate__pythainpl_dict_paiboon'
     conf['prompts']['transliterate'] = {
         # 'prompt': 'transliterate the thai text with the ISO 11940 system. do not include any explanations. keep html tags.\n\nText: ',
         'prompt': 'Transliteration is now done through the pythainpl library, together with a dictionary thai(script)->transliteration(paiboon). (not through gemini or chatgpt)',
@@ -84,8 +54,9 @@ def init_config():
         'use_word_substitution_list': False,
     }
 
-    # keep html tags and characters that are in roman/latin  unchanged.
+    # not used right now: keep html tags and characters that are in roman/latin  unchanged.
 
+    # not used right now:
     word_annotation_hint = 'Text in Square Brackets are annotations how the word before should be handled ' + \
                            'differently. if they contain a condition, only follow the annotation if the ' + \
                            'condition is met. do not print text in square brackets.'
@@ -129,6 +100,34 @@ def init_config():
     conf['word_substitution_list'] = load_word_substitution_list('lib/word_substitution_list.data')
     conf['word_translation_annotation_list'] = load_word_translation_annotation_list(
         'lib/word_translation_annotation_list.data')
+
+    ##########
+    # ----------------------------- normal config ends here --------------------------------
+    ##########
+
+    # --- process args
+
+    # Create the parser
+    parser = argparse.ArgumentParser(description="This script does something with a name and an input file.")
+
+    # Add the '-p' argument for some name, required
+    h = ('Specify a Project_Name. The script automatically continues where you last left of (after successul script '
+         'execution).')
+    parser.add_argument('-p', type=str, required=True, help=h)
+
+    # Add the '-i' argument for the input file, required
+    h = ('Specify the input file path. Accepted are Text files with a blank line as paragraph divider. Once the file '
+         'is processed, the paragraphs will be stored in [project_folder]/saved_paragraphs.pickle and -i option '
+         'neeeds to be specified any more.')
+    parser.add_argument('-i', type=str, help=h)
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # --- process args end
+
+    conf['project_name'] = args.p
+    conf['input_file'] = args.i
 
     try:
         os.makedirs(conf['project_name'], exist_ok=True)
@@ -477,8 +476,9 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
 def group_query_ai(query, send_with_paragraph_id=True):
     paragraphs_slice, paragraph_ids_group, prompt_name, prompt, conf, query_arg_id = query
 
-    print(
-        f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - query nr {query_arg_id + 1:>4}: start')
+    m = f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - ' + \
+        f'query nr {query_arg_id + 1:>4}: start'
+    # print(m)
 
     text_group = ''
     for paragraph_id in paragraphs_slice:
@@ -628,7 +628,7 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                             paragraphs[paragraph_id][prompt_name]['safety_block'] = result['safety_block']
                             paragraphs[paragraph_id][prompt_name]['safety_rating'] = result['safety_rating']
                             paragraphs[paragraph_id][prompt_name]['processed_in_paragraph_group'] = \
-                            query_args[query_arg_id][1]
+                                query_args[query_arg_id][1]
                             paragraphs[paragraph_id][prompt_name]['prompt'] = [query_args[query_arg_id][2],
                                                                                query_args[query_arg_id][3]]
                         except Exception as e:
@@ -940,14 +940,12 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
 
 
 if __name__ == '__main__':
-    init_config()
+
     try:
         init_config()
     except Exception as e:
         print(f"An error occurred: {e}")
         sys.exit(1)
-
-
 
     load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(prompts_to_process)
@@ -959,8 +957,6 @@ if __name__ == '__main__':
     date_str = now.strftime('%Y.%m.%d_%H%M')
 
     save_paragraphs_to_epub(conf['prompts_to_display'], date_str)
-
-
 
     stat_text_prompts, stat_text_execution = format_stats(stats, conf)
     save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
