@@ -79,6 +79,12 @@ def extract_latin(text):
 
 
 def token_count_thai0(text):
+    """
+        guesses how many tokens are in the text. counts only thai char. (approximately 1 token per char for chatgpt)
+        more precise token counts use more complex libraries (e.g. word separation). just not necessary.
+    :param text:
+    :return:
+    """
     thai_chars = 0
     for char in text:
         if 0xE01 <= ord(char) <= 0xE5B:  # Check for Thai Unicode range
@@ -101,6 +107,11 @@ def token_count_thai2(text):
 
 
 def token_count_eng0(text):
+    """
+        gives approximate token count (4 char ~ 1 token). only considers latin char. good enough for this project.
+    :param text:
+    :return:
+    """
     latin_chars = 0
     for char in text:
         if ord(char) >= 32 and ord(char) <= 126:  # Check for ASCII range
@@ -109,6 +120,12 @@ def token_count_eng0(text):
 
 
 def token_count(text):
+    """
+        returns approximate token count. thai and english will be counted separately to judge more correctly.
+        4 en char ~ 1 token, 1 thai char ~ 1 token
+    :param text:
+    :return:
+    """
     th = token_count_thai0(text)
     en = token_count_eng0(text)
     return th + en
@@ -165,7 +182,7 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", use_html_tag_guides=False, trim
 def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True):
     paragraph_groups = []
     current_group = []
-    current_group_chars = 0
+    current_group_tokens = 0
     previous_added_paragraph = 0
 
     for i in range(len(paragraphs)):
@@ -181,18 +198,18 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
 
         # Check if adding the current paragraph exceeds the max_tokens limit
         #  or: check that it is a continous block of paragraphs
-        current_paragraph_char = len(paragraphs[i]['original']['text'])
-        if current_group_chars + current_paragraph_char > max_tokens or previous_added_paragraph+1 != i:
+        current_paragraph_tokens = token_count(paragraphs[i]['original']['text'])
+        if current_group_tokens + current_paragraph_tokens > max_tokens or previous_added_paragraph+1 != i:
             # If current group is not empty, add list id to paragraph_groups
             if current_group:
                 paragraph_groups.append(current_group)
             # Start a new group with the current paragraph
             current_group = [i]
-            current_group_chars = current_paragraph_char
+            current_group_tokens = current_paragraph_tokens
         else:
             # Add paragraph to the current group
             current_group.append(i)
-            current_group_chars += current_paragraph_char
+            current_group_tokens += current_paragraph_tokens
         previous_added_paragraph = i
 
     # Add the last group if it's not empty
