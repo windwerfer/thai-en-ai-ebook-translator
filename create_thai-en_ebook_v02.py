@@ -2,16 +2,18 @@
 #   pkg install python-grpcio python-pillow   (in termux if venv, needs to passthrough those packages!!)
 #   pip install google.generativeai
 #   pip install pythainlp tzdata pprint regex chardet
+import argparse
 import csv
 import os
 import pickle
 import pprint
+import random
 import re
 import shutil
 import subprocess  # to run a command in the terminal: run_command()
+import sys
 import textwrap
 import time
-import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 
@@ -25,50 +27,51 @@ from lib import my_transliteration_paiboon
 def init_config():
     global conf, stats, files
 
+    # --- process args
+
+    # Create the parser
+    parser = argparse.ArgumentParser(description="This script does something with a name and an input file.")
+
+    # Add the '-p' argument for some name, required
+    h = ('Specify a Project_Name. The script automatically continues where you last left of (after successul script '
+         'execution).')
+    parser.add_argument('-p', type=str, required=True, help=h)
+
+    # Add the '-i' argument for the input file, required
+    h = ('Specify the input file path. Accepted are Text files with a blank line as paragraph divider. Once the file '
+         'is processed, the paragraphs will be stored in [project_folder]/saved_paragraphs.pickle and -i option '
+         'neeeds to be specified any more.')
+    parser.add_argument('-i', type=str, help=h)
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+
+    # --- process args end
+
     conf = {}
-    conf['project_name'] = 'prj_lp_choob_02'
+    conf['project_name'] = args.p  # 'prj_lp_choob_02'
+    conf['input_file'] = args.i  # 'prj_lp_choob_02'
 
     conf['max_tokens_per_query__gemini'] = 1400
     conf['max_workers'] = 10  # nr of queries run simultaniusly
     conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
-    # conf['start_block'] = 31  # start at 0
-    # conf['end_block'] = 60  # put in 9999 for the end of the book
-    # conf['max_attempts'] = 15  # maximum retries to send to an AI before giving up
-    # conf['pause_between_retries'] = 5
-    # conf['pickle_paragraphs_every_X_successfull_querys'] = 20
 
-    if is_debugger_enabled():
-        print('debuger enbled -> set max_workers to 1')
-        conf[
-            'max_workers'] = 1  # run only one process if debugging, otherwise the other elements in the queue will finish before debugin is stoped -> error
+
+    conf['prompts_to_process'] = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
+                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_default_2024.03', 'gemini_literal_2024.03',
+                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+
+
 
     # files = {}
     # files['out'] = open(conf['project_name'] + '/translated.txt', 'w', encoding='utf-8')
     # files['error_out'] = open(conf['project_name'] + '/errors.txt', 'w', encoding='utf-8')
     # files['blocks'] = open(conf['project_name'] + '/blocks.txt', 'w', encoding='utf-8')
 
-    try:
-        os.makedirs(conf['project_name'], exist_ok=True)
-        print(f'Project directory "{conf['project_name']}" successfully opened')
-    except OSError as error:
-        print(f'Project directory could not be created: "{conf['project_name']}" ')
 
-    #  google servers (not vertex)
-    # gemini pro:
-    # Input token limit     30720
-    # Output token limit    2048
-    # Rate limit  60 requests per minute
-
-    # gemini pro vision:
-    # Input token limit     12288
-    # Output token limit    4096
-    # Rate limit  60 requests per minute
-
-    #  vertex server
-    # gemini pro:
-    # Input token limit     32,760
-    # Output token limit    8,192
-    # Rate limit  60 requests per minute
 
     conf['prompts'] = {}
 
@@ -127,6 +130,34 @@ def init_config():
     conf['word_translation_annotation_list'] = load_word_translation_annotation_list(
         'lib/word_translation_annotation_list.data')
 
+    try:
+        os.makedirs(conf['project_name'], exist_ok=True)
+        print(f'Project directory "{conf['project_name']}" successfully opened')
+    except OSError as error:
+        print(f'Project directory could not be created: "{conf['project_name']}" ')
+
+    #  google servers (not vertex)
+    # gemini pro:
+    # Input token limit     30720
+    # Output token limit    2048
+    # Rate limit  60 requests per minute
+
+    # gemini pro vision:
+    # Input token limit     12288
+    # Output token limit    4096
+    # Rate limit  60 requests per minute
+
+    #  vertex server
+    # gemini pro:
+    # Input token limit     32,760
+    # Output token limit    8,192
+    # Rate limit  60 requests per minute
+
+    # run only one process if debugging, otherwise the other elements in the queue will finish before debugin is stoped -> error
+    if is_debugger_enabled():
+        print('debuger enbled -> set max_workers to 1')
+        conf['max_workers'] = 1
+
     stats = {}
     stats['start_time'] = time.time()
     stats['total_requests'] = 0
@@ -161,12 +192,12 @@ def load_word_translation_annotation_list(file_name='lib/word_translation_annota
         data[w[0]] = f"'{w[0]}': {w[1]}"
     return data
 
+
 def replace_with_word_substitution_list(text):
     dic = conf['word_substitution_list']
     for pattern, repl in dic.items():
         text = re.sub(pattern, repl, text)
     return text
-
 
 
 def run_command(command):
@@ -237,8 +268,7 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
     }
 
     # saved in C:/Users/watdo/python/pycharm_default_enviroment_var.env
-    GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY_wasser']  # to fetch an environment variable.
-    GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY_wdcmm']  # to fetch an environment variable.
+    GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY']  # to fetch an environment variable.
     genai.configure(api_key=GOOGLE_API_KEY)
 
     model = genai.GenerativeModel('gemini-pro')
@@ -291,9 +321,9 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
         finish_reason = (-2, s)
 
     # time.sleep(1)
-    ret = [ text, success, finish_reason, safety_block, safety_rating]
+    ret = [text, success, finish_reason, safety_block, safety_rating]
     ret = {'text': text, 'success': success, 'finish_reason': finish_reason, 'safety_block': safety_block,
-            'safety_rating': safety_rating}
+           'safety_rating': safety_rating}
 
     # Generate a random float number between 1 and 3
     pause_time = random.uniform(1, 3)
@@ -447,7 +477,8 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
 def group_query_ai(query, send_with_paragraph_id=True):
     paragraphs_slice, paragraph_ids_group, prompt_name, prompt, conf, query_arg_id = query
 
-    print(f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - query nr {query_arg_id + 1:>4}: start')
+    print(
+        f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - query nr {query_arg_id + 1:>4}: start')
 
     text_group = ''
     for paragraph_id in paragraphs_slice:
@@ -467,7 +498,7 @@ def group_query_ai(query, send_with_paragraph_id=True):
                                top_k=int(prompt['top_k']),
                                top_p=float(prompt['top_p']))
 
-    # r = "\n\n".split(ret)
+            # r = "\n\n".split(ret)
 
             ret['paragraphs'] = my_text.split_paragraphs(ret['text'], send_with_paragraph_id=send_with_paragraph_id)
             ret['paragraph_ids_group'] = paragraph_ids_group
@@ -504,8 +535,6 @@ def run_queries(paragraph_groups, paragraphs, prompts):
             paragraphs_slice = {}
             for i in range(paragraph_ids_group[0], paragraph_ids_group[-1] + 1):
                 paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'])
-
-
 
             # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original
             #  paragraphs list and the prompt that will be processed
@@ -568,7 +597,8 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                         # eg: prompt: '1. หลวงปู่..' -> answer '1. Luang Phu'
                         try:
                             if paragraph_id != query_args[query_arg_id][1][j]:
-                                print(f'paragraph id of answer {paragraph_id} doesnt match the prompt {query_args[query_arg_id][1][j]} -> ignore')
+                                print(
+                                    f'paragraph id of answer {paragraph_id} doesnt match the prompt {query_args[query_arg_id][1][j]} -> ignore')
                                 continue
                             result['paragraphs'][paragraph_id]
                         except KeyError:
@@ -586,7 +616,6 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                             paragraphs[paragraph_id][prompt_name]['text'] = result['paragraphs'][paragraph_id]
                             paragraphs[paragraph_id][prompt_name]['retries'] += 1
 
-
                             # if this is the first time the paragraph was sent, the dict for that prompt_name
                             #   has to be created first
                             paragraphs[paragraph_id][prompt_name] = {}
@@ -598,11 +627,12 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                             paragraphs[paragraph_id][prompt_name]['finish_reason'] = result['finish_reason']
                             paragraphs[paragraph_id][prompt_name]['safety_block'] = result['safety_block']
                             paragraphs[paragraph_id][prompt_name]['safety_rating'] = result['safety_rating']
-                            paragraphs[paragraph_id][prompt_name]['processed_in_paragraph_group'] = query_args[query_arg_id][1]
-                            paragraphs[paragraph_id][prompt_name]['prompt'] = [query_args[query_arg_id][2], query_args[query_arg_id][3]]
+                            paragraphs[paragraph_id][prompt_name]['processed_in_paragraph_group'] = \
+                            query_args[query_arg_id][1]
+                            paragraphs[paragraph_id][prompt_name]['prompt'] = [query_args[query_arg_id][2],
+                                                                               query_args[query_arg_id][3]]
                         except Exception as e:
                             print('error: couldnt update paragraphs correctly, but succeeded in returning the query')
-
 
                     # pickle paragraphs from time to time -> no loss on errors
                     # if stats['total_success'] % conf['pickle_paragraphs_every_X_successfull_querys'] == 0:
@@ -622,13 +652,12 @@ def run_queries(paragraph_groups, paragraphs, prompts):
 
                 # print(f"Result for prompt '{querys[idx][1]}': {" -- ".join(result)[0:40]}")
             except KeyError as e:
-                print('dict key wrong: '+str(e))
+                print('dict key wrong: ' + str(e))
             except Exception as e:
 
                 print(
                     f"unusual error paragraph group - very general.. - [{prompt_name}] {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4} - query nr {query_arg_id + 1:>4}: " + str(
                         e))
-
 
     if len(err) > 0:
         save_matrix_to_cvs(f'{conf['project_name']}/error.csv', err)
@@ -810,7 +839,11 @@ def load_and_process_paragraphs(prompts_to_process):
             # grab from url is not working too well, proof of concept more than anything
             # my_grab_urls.prepare_input(conf['project_name'])
 
-            filename = conf['project_name'] + "/input.txt"
+            filename = conf['input_file']
+
+            if filename is None:
+                print('when you start a new project, you need to specify an input file with the option -i')
+                sys.exit(1)
 
             paragraphs = load_paragraphs(filename)
 
@@ -833,9 +866,11 @@ def load_and_process_paragraphs(prompts_to_process):
             for i, p in enumerate(paragraphs):
                 if 'transliterate' not in paragraphs[i]:
                     paragraphs[i]['transliterate'] = {
-                        'text': my_transliteration_paiboon.tokenize_and_transliterate(paragraphs[i]['original']['text'])}
+                        'text': my_transliteration_paiboon.tokenize_and_transliterate(
+                            paragraphs[i]['original']['text'])}
 
         pickle_paragraphs(conf['project_name'])
+
 
 def save_paragraphs_to_epub(prompts_to_display, date_str):
     final_text = merge_paragraphs(paragraphs, prompts_to_display)
@@ -906,13 +941,15 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
 
 if __name__ == '__main__':
     init_config()
+    try:
+        init_config()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
 
-    prompts_to_process = ['gemini_k.rob_creative02']
-    prompts_to_process = ['gemini_default_2024.03']
-    prompts_to_process = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03','gemini_k.rob_creative02']
 
-    load_and_process_paragraphs(prompts_to_process)
+
+    load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(prompts_to_process)
     # load_and_process_paragraphs(prompts_to_process)
     # load_and_process_paragraphs(prompts_to_process)
@@ -920,15 +957,12 @@ if __name__ == '__main__':
 
     now = datetime.now()
     date_str = now.strftime('%Y.%m.%d_%H%M')
-    prompts_to_display = ['original', 'transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
-    # save_paragraphs_to_epub(prompts_to_display, date_str)
 
-    prompts_to_display = ['original', 'transliterate', '', 'gemini_default_2024.03', 'gemini_literal_2024.03',
-                          'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+    save_paragraphs_to_epub(conf['prompts_to_display'], date_str)
+
+
 
     stat_text_prompts, stat_text_execution = format_stats(stats, conf)
-    save_paragraphs_to_cvs(prompts_to_display, date_str, stat_text_prompts + stat_text_execution)
-
+    save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
 
     print(stat_text_execution)
