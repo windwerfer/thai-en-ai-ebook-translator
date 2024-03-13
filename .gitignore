@@ -9,3 +9,5 @@ out_error.txt
 prj_*
 snippets/*
 tmp/*
+node_modules/*
+package*json

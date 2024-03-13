@@ -4,13 +4,14 @@
 #   pip install pythainlp tzdata pprint regex chardet
 import argparse
 import csv
+import json
 import os
 import pickle
 import pprint
 import random
 import re
 import shutil
-import subprocess  # to run a command in the terminal: run_command()
+# import subprocess  # to run a command in the terminal: run_command()
 import sys
 import textwrap
 import time
@@ -21,7 +22,9 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from lib import my_text
-from lib import my_transliteration_paiboon
+
+
+# from lib import my_transliteration_paiboon
 
 
 def init_config():
@@ -853,7 +856,7 @@ def load_and_process_paragraphs(prompts_to_process):
     #                               prompt: prompt_text+some_paragraphs,
     #                               temperature: float, top_k=int, top_p=float}
 
-    if True:
+    if False:
         paragraph_stats = compile_paragraph_statics(paragraphs, prompts_to_process)
 
         safety_rating_overview = safety_matrix_to_text(paragraph_stats)
@@ -863,6 +866,10 @@ def load_and_process_paragraphs(prompts_to_process):
         paragraphs = run_queries(paragraph_groups, paragraphs, conf['prompts'])
 
         if 'transliterate' in prompts_to_process:
+            # if not imported yet, import the transliteration libs
+            if "lib.my_transliteration_paiboon" not in sys.modules:
+                from lib import my_transliteration_paiboon
+
             for i, p in enumerate(paragraphs):
                 if 'transliterate' not in paragraphs[i]:
                     paragraphs[i]['transliterate'] = {
@@ -870,6 +877,12 @@ def load_and_process_paragraphs(prompts_to_process):
                             paragraphs[i]['original']['text'])}
 
         pickle_paragraphs(conf['project_name'])
+    save_paragraphs_to_json(paragraphs, file_name=f'{conf['project_name']}/paragraphs_original.json')
+    save_paragraphs_to_xml3(paragraphs,
+                            file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_complex.xml')
+    save_paragraphs_to_xml2(paragraphs, file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_medium.xml')
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_choob_pOrg_v02_maxT3200.xml',
+                           max_tokens=3200)
 
 
 def save_paragraphs_to_epub(prompts_to_display, date_str):
@@ -939,6 +952,97 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
     print(f"File '{file_name}' saved successfully.")
 
 
+def save_paragraphs_to_json(paragraphs, file_name, only_original_text=True):
+    # Create list of key-value pairs as objects
+    json_array_with_keys = [{f"{str(k + 2)}": v['original']['text']} for k, v in enumerate(paragraphs)]
+
+    json_string_1 = json.dumps(json_array_with_keys, ensure_ascii=False)
+
+    with open(file_name, 'w', encoding='utf-8') as file:
+        file.write(json_string_1)
+
+    return json_array_with_keys
+
+
+def save_paragraphs_to_xml3(paragraphs, file_name, only_original_text=True, simple=False):
+    # Create list of key-value pairs as objects
+    xml_dict = [{k: v['original']['text']} for k, v in enumerate(paragraphs)]
+
+    import xml.etree.ElementTree as ET
+
+    # Create the root element
+    root = ET.Element('items')
+
+    if simple:
+        # Iterate over the dictionary items and create an 'item' element for each
+        for key, value in enumerate(xml_dict):
+            item = ET.SubElement(root, 'item')
+            item.set('key', str(key))
+            item.set('value', value)
+    else:
+        for key, value in enumerate(xml_dict):
+            item_element = ET.SubElement(root, 'item')
+            key_element = ET.SubElement(item_element, 'key')
+            key_element.text = str(key)
+            value_element = ET.SubElement(item_element, 'value')
+            value_element.text = str(value)
+
+    # Convert the ElementTree to a string and write it to a file
+    tree = ET.ElementTree(root)
+
+    with open(file_name, 'wb') as file:
+        tree.write(file, encoding='utf-8', xml_declaration=True)
+
+    return tree
+
+
+def save_paragraphs_to_xml2(paragraphs, file_name, only_original_text=True):
+    import dicttoxml
+
+    # Create list of key-value pairs as objects
+    xml_dict = [{k: v['original']['text']} for k, v in enumerate(paragraphs)]
+
+    xml = dicttoxml.dicttoxml(xml_dict, custom_root='items', item_func=lambda x: 'item')
+
+    # print(xml)
+    # json_string_1 = json.dumps(json_array_with_keys, ensure_ascii=False)
+
+    # with open(file_name, 'w', encoding='utf-8') as file:
+    with open(file_name, 'wb') as file:
+        file.write(xml)
+
+    return xml
+
+
+def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original_text=True):
+    from xml.etree.ElementTree import Element, SubElement, tostring
+    from xml.dom.minidom import parseString
+
+    groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name='to_xml',
+                                               process_only_unfinished=False)
+
+    groups
+
+    items = Element('items')
+
+    # for k, v in enumerate(paragraphs):
+    #     SubElement(items, 'value', {'id': str(k + 2)}).text = v['original']['text']
+    token_count = 0
+    for gr_id, group in enumerate(groups):
+        for p_id in group:
+            text = paragraphs[p_id]['original']['text']
+            token_count += my_text.token_count(text)
+            SubElement(items, 'value', {'id': str(p_id + 2), 'gr':str(gr_id), 'tc':str(token_count)}).text = re.sub(r'\n',' ', text)
+
+    xml_str = tostring(items, 'utf-8')
+    pretty_xml = parseString(xml_str).toprettyxml()
+
+    with open(file_name, 'w', encoding='utf-8') as xml_file:
+        xml_file.write(pretty_xml)
+
+    return pretty_xml
+
+
 if __name__ == '__main__':
 
     try:
@@ -956,9 +1060,9 @@ if __name__ == '__main__':
     now = datetime.now()
     date_str = now.strftime('%Y.%m.%d_%H%M')
 
-    save_paragraphs_to_epub(conf['prompts_to_display'], date_str)
-
-    stat_text_prompts, stat_text_execution = format_stats(stats, conf)
-    save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
-
-    print(stat_text_execution)
+    # save_paragraphs_to_epub(conf['prompts_to_display'], date_str)
+    #
+    # stat_text_prompts, stat_text_execution = format_stats(stats, conf)
+    # save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
+    #
+    # print(stat_text_execution)
