@@ -932,7 +932,11 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
                 if pr == '':
                     row.append('')
                     continue
-                row.append(p[pr]['text'])
+                text1 = re.sub(r'\n',' ', p[pr]['text'])
+                text1 = re.sub('\n',' ', text1)
+                text1 = re.sub(r'\t',' ', text1)
+                text1 = re.sub('\t',' ', text1)
+                row.append(text1)
             else:
                 row.append('')
 

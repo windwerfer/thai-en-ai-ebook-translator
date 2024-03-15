@@ -99,6 +99,12 @@ def send_text_slowly(element, text, speed=0.001):
         time.sleep(pause)  # Pause for the generated duration
 
 
+def get_current_tab_id():
+    current_window = driver.current_window_handle
+    windows = driver.window_handles
+    current_index = windows.index(current_window)
+    return current_index
+
 def goto_tab(tab='first'):
     """     the numberings is from newest to oldest (index 0 is the tab created last)
 
@@ -146,6 +152,7 @@ def new_tab(url='https://chat.openai.com'):
     driver.switch_to.new_window('tab')
     # loads a url and waits until loaded
     driver.get(url)
+    time.sleep(2)
 
 
 def is_the_answer_finished():
@@ -164,7 +171,7 @@ def is_the_answer_finished():
 
 
 def init_session():
-    global driver, actions, attach_to_chrome_remote_debug, el, answer_conent_mem
+    global driver, actions, attach_to_chrome_remote_debug, el, answer_conent_mem, window_tab_titles
 
     el = {}
     el['code_blocks_class'] = '.p-4'  # code element
@@ -180,6 +187,8 @@ def init_session():
     # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
     #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
     el['completed_converstion_parts_marker'] = '.w-full .text-gray-400.visible'
+
+    window_tab_titles = {}
 
     user_data_dir = 'C:/Users/watdo/AppData/Local/Google/Chrome/User Data'
 
@@ -290,11 +299,12 @@ def click_on_contiune_prompt():
         print(f'continued with window "{driver.title}" id_{current_index}')
         # click
         continueEl.click()
+        return True
     except NoSuchElementException as e:
         print('no continue input field found.')
     except Exception as e:
         print('not found, but different error')
-
+    return False
 
 def past_prompt(text, click_send=False, speed=0.0001, use_paste=True):
     global driver, el
@@ -324,6 +334,8 @@ def past_prompt(text, click_send=False, speed=0.0001, use_paste=True):
     else:
         send_text_slowly(promptE, text, speed=speed)
 
+    time.sleep(3)
+
     # send the prompt
     if click_send:
         actions.move_to_element(sendE).perform()
@@ -331,7 +343,9 @@ def past_prompt(text, click_send=False, speed=0.0001, use_paste=True):
 
 
 def chatGPT_batch_populate(nr_of_tabs=1, start_block=0):
-    global paragraphs
+    global paragraphs, window_titles
+
+    window_tab_titles = {}
 
     paragraphs = unpickle_paragraphs('prj_lp_choob_03')
 
@@ -342,6 +356,7 @@ def chatGPT_batch_populate(nr_of_tabs=1, start_block=0):
     for tab_id in range(nr_of_tabs):
         # new_tab('https://twitter.com/')
         new_tab('https://chat.openai.com/')
+
 
         prompt = """
         You are a translator app now. 
@@ -356,8 +371,11 @@ def chatGPT_batch_populate(nr_of_tabs=1, start_block=0):
         pa = ''
         tc = 0
         group_counter = 0
+        title = f'C {group_id_start}-{group_id_start + groups_to_send_per_tab} '
+        tab_id = get_current_tab_id()
+        window_tab_titles[tab_id] = title
+        set_title(title)
 
-        set_title(f'C {group_counter}-{group_counter + groups_to_send_per_tab} ')
         for group_id, paragraph_ids in enumerate(groups):
             # start to add paragraphs when not yet pasted
             if group_id_start > group_id:
@@ -383,25 +401,69 @@ def chatGPT_batch_populate(nr_of_tabs=1, start_block=0):
 
 def cycle_tabs_and_continue_output():
 
+    global window_tab_titles
 
     for i in range(300):
         # when True, continue to cycle, if False return True (batch comple)
-        min_1_tab_not_yet_finished = False
+        still_running = False
 
 
         tabs_len = len(driver.window_handles)
         for tab in range(tabs_len):
-            click_on_contiune_prompt()
-            time.sleep(1)
+
+            # if finished typing (try clicking before checking if finished)
+            #  return is True -> continue button found & clicked
+            if click_on_contiune_prompt():
+                still_running = True
+
+            # set title again (chatGPT likes to change it)
+            tab_id = get_current_tab_id()
+            try:
+                set_title( window_tab_titles[tab_id] )
+            except Exception as e:
+                pass   # try to reset window title, do nothing if var not set (eg restart)
+
+            #check if chatGPT is still typing
             if not is_the_answer_finished():
-                min_1_tab_not_yet_finished = True
+                still_running = True
+                print(f'still typing "{driver.title}" id_{tab_id}')
+
+
+            time.sleep(2)
+
             goto_tab('next')
 
-        if not min_1_tab_not_yet_finished:
+        if not still_running:
             print('all finished')
             return True
 
         time.sleep(60)
+
+
+def cycle_tabs_and_start_pompts(click_continue_if_available=True):
+
+    tabs_len = len(driver.window_handles)
+    for tab in range(tabs_len):
+        try:
+
+            # check if continue is available
+            if click_on_contiune_prompt():
+                time.sleep(2)
+                continue
+
+            sendE = driver.find_element(By.CSS_SELECTOR, el['send_button_class'])
+
+            actions.move_to_element(sendE).perform()
+            sendE.click()
+            print(f'prompt started for  "{driver.title}"')
+            time.sleep(2)
+        except Exception as e:
+            print(f'no send prompt button for  "{driver.title}"')
+
+        time.sleep(2)
+
+        goto_tab('next')
+
 
 
 if __name__ == '__main__':
@@ -423,8 +485,11 @@ if __name__ == '__main__':
     # -- session initialized, basic functions defined, all setup and ready to go
 
     # test_basic_elements()
+    # 2x 6 -> quota reached, 1x6 -> works great.. test with 8?
+    # chatGPT_batch_populate(nr_of_tabs=9, start_block=54)
 
-    # chatGPT_batch_populate(nr_of_tabs=3, start_block=9)
+
+    # cycle_tabs_and_start_pompts(click_continue_if_available=True)
 
     cycle_tabs_and_continue_output()
 
