@@ -16,6 +16,9 @@ from pythainlp.transliterate import romanize
 template_file = "lib/thai2ipa.data"
 with codecs.open(template_file, 'r', encoding='utf8') as f:
     lines_org = f.read().splitlines()
+template_file = "lib/thai2paiboon-volubilis_v02.txt"
+with codecs.open(template_file, 'r', encoding='utf8') as f:
+    lines_volubilis = f.read().splitlines()
 template_file = "lib/thai2ipa_add.data"
 with codecs.open(template_file, 'r', encoding='utf8') as f:
      lines_add = f.read().splitlines()
@@ -25,8 +28,8 @@ for t in lines_org:
     if len(w) != 2:
         continue
     data[w[0]] = w[1]
-for t in lines_add:
-    w = t.split(',', 1)
+for t in lines_volubilis + lines_add:
+    w = t.split('\t', 1)
     if len(w) != 2:
         continue
     data[w[0]] = w[1]

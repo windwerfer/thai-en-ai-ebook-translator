@@ -11,6 +11,7 @@ import pprint
 import random
 import re
 import shutil
+import subprocess
 # import subprocess  # to run a command in the terminal: run_command()
 import sys
 import textwrap
@@ -34,10 +35,10 @@ def init_config():
 
     conf = {}
 
-    conf[
-        'max_tokens_per_query__gemini'] = 1400  # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
+    # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
+    conf['max_tokens_per_query__gemini'] = 2500
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
-    conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
+    conf['max_groups_to_process'] = 1  # for testing: only do a view querys before finishing
 
     conf['prompts_to_process'] = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
                                   'gemini_creative_2024.03', 'gemini_k.rob_creative02']
@@ -100,6 +101,8 @@ def init_config():
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
 
+    conf['pali_terms_list_mine'] = load_word_substitution_list('lib/pali_terms_mine.txt', sep='\t')
+    conf['pali_terms_list_pts'] = load_word_substitution_list('lib/pali_terms_pts.txt', sep='\t')
     conf['word_substitution_list'] = load_word_substitution_list('lib/word_substitution_list.data')
     conf['word_translation_annotation_list'] = load_word_translation_annotation_list(
         'lib/word_translation_annotation_list.data')
@@ -173,12 +176,12 @@ def init_config():
     stats['failed_paragraphs'] = []
 
 
-def load_word_substitution_list(file_name='lib/word_substitution_list.data'):
+def load_word_substitution_list(file_name='lib/word_substitution_list.data',sep=','):
     with open(file_name, 'r', encoding='utf8') as f:
         lines = f.read().splitlines()
     data = {}
     for t in lines:
-        w = t.split(',', 1)
+        w = t.split(sep, 1)
         if len(w) != 2 or w[0][0:1] == '#':
             continue
         data[w[0]] = w[1]
@@ -195,9 +198,22 @@ def load_word_translation_annotation_list(file_name='lib/word_translation_annota
     return data
 
 
-def replace_with_word_substitution_list(text):
+def replace_with_word_substitution_list(text, wrap='',add_original=False):
     dic = conf['word_substitution_list']
+
     for pattern, repl in dic.items():
+        if add_original:
+            add = f'{pattern}: '
+        else:
+            add = ''
+        if wrap == '{}':
+            repl = '{' + add + repl + '}'
+        if wrap == '[]':
+            repl = '[' + add + repl + ']'
+        if wrap == 'exp':
+            r = repl.split('|')
+            repl = '" or "'.join(r)
+            repl = '{' + 'the next occurrence of "' +pattern+'" needs to be translated as  "' + repl + '"}'
         text = re.sub(pattern, repl, text)
     return text
 
@@ -451,6 +467,7 @@ def load_paragraphs(filename, delimiter='\n\n'):
             # TODO: remove later. only for the LP Fak bio
             s = re.sub(r'˶', '“', s, flags=re.MULTILINE)
             s = re.sub(r'˝', '”', s, flags=re.MULTILINE)
+            s = re.sub(r'\n', ' ', s, flags=re.MULTILINE)
 
             paragraphs.append({'original': {'text': s}})
 
@@ -476,7 +493,7 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
     return prompts_to_process
 
 
-def group_query_ai(query, send_with_paragraph_id=True):
+def group_query_ai(query, send_with_paragraph_id=False, send_with_paragraph_tag=True):
     paragraphs_slice, paragraph_ids_group, prompt_name, prompt, conf, query_arg_id = query
 
     m = f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - ' + \
@@ -487,23 +504,30 @@ def group_query_ai(query, send_with_paragraph_id=True):
     for paragraph_id in paragraphs_slice:
         if send_with_paragraph_id:
             text_group = text_group + f'\n\n{paragraph_id}. {paragraphs_slice[paragraph_id]}'
+        if send_with_paragraph_tag:
+                text_group = text_group + f'<item id="{paragraph_id}">{paragraphs_slice[paragraph_id]}</item>\n'
         else:
             text_group = text_group + f'\n\n{paragraphs_slice[paragraph_id]}'
 
     # remove the 2 empty newlines at the beginning
-    text_group = text_group[2:]
+    if not send_with_paragraph_tag:
+        text_group = text_group[2:]
 
     # ask google
     if prompt['engine'] == 'gemini':
         try:
-            p1 = prompt['prompt'] + text_group
+            p1 = prompt['prompt'] + "\n\n" + text_group
             ret = query_gemini(p1, temperature=float(prompt['temperature']),
                                top_k=int(prompt['top_k']),
                                top_p=float(prompt['top_p']))
 
             # r = "\n\n".split(ret)
 
-            ret['paragraphs'] = my_text.split_paragraphs(ret['text'], send_with_paragraph_id=send_with_paragraph_id)
+            ret['paragraphs'] = my_text.split_paragraphs(ret['text'], send_with_paragraph_id=send_with_paragraph_id, send_with_paragraph_tag=send_with_paragraph_tag)
+            if 'paragraphs' not in ret or len(ret['paragraphs']) == 0:
+                ret['success'] = False
+                ret['finish_reason'] = 'paragraph xml tag missing in return or not formated corectly'
+                return ret
             ret['paragraph_ids_group'] = paragraph_ids_group
             ret['query_arg_id'] = query_arg_id
             ret['prompt_name'] = prompt_name
@@ -537,7 +561,7 @@ def run_queries(paragraph_groups, paragraphs, prompts):
             #  and last item of the group
             paragraphs_slice = {}
             for i in range(paragraph_ids_group[0], paragraph_ids_group[-1] + 1):
-                paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'])
+                paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'], wrap='{}')
 
             # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original
             #  paragraphs list and the prompt that will be processed
@@ -877,12 +901,13 @@ def load_and_process_paragraphs(prompts_to_process):
                             paragraphs[i]['original']['text'])}
 
         pickle_paragraphs(conf['project_name'])
-    save_paragraphs_to_json(paragraphs, file_name=f'{conf['project_name']}/paragraphs_original.json')
-    save_paragraphs_to_xml3(paragraphs,
-                            file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_complex.xml')
-    save_paragraphs_to_xml2(paragraphs, file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_medium.xml')
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_choob_pOrg_v02_maxT3200.xml',
-                           max_tokens=3200)
+    # save_paragraphs_to_json(paragraphs, file_name=f'{conf['project_name']}/paragraphs_original.json')
+    # save_paragraphs_to_xml3(paragraphs,
+    #                         file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_complex.xml')
+    # save_paragraphs_to_xml2(paragraphs, file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_medium.xml')
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok.xml', max_tokens=3200)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
+                           max_tokens=3200, word_substitution_list=True)
 
 
 def save_paragraphs_to_epub(prompts_to_display, date_str):
@@ -1018,14 +1043,13 @@ def save_paragraphs_to_xml2(paragraphs, file_name, only_original_text=True):
     return xml
 
 
-def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original_text=True):
+def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original_text=True, word_substitution_list=False):
     from xml.etree.ElementTree import Element, SubElement, tostring
     from xml.dom.minidom import parseString
 
     groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name='to_xml',
                                                process_only_unfinished=False)
 
-    groups
 
     items = Element('items')
 
@@ -1035,8 +1059,10 @@ def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original
     for gr_id, group in enumerate(groups):
         for p_id in group:
             text = paragraphs[p_id]['original']['text']
+            if word_substitution_list:
+                text = replace_with_word_substitution_list(text, wrap='exp')
             token_count += my_text.token_count(text)
-            SubElement(items, 'value', {'id': str(p_id + 2), 'gr':str(gr_id), 'tc':str(token_count)}).text = re.sub(r'\n',' ', text)
+            SubElement(items, 'value', {'id': str(p_id + 2), 'gr':str(gr_id), 'tok':str(token_count)}).text = re.sub(r'\n',' ', text)
 
     xml_str = tostring(items, 'utf-8')
     pretty_xml = parseString(xml_str).toprettyxml()
@@ -1065,8 +1091,10 @@ if __name__ == '__main__':
     date_str = now.strftime('%Y.%m.%d_%H%M')
 
     # save_paragraphs_to_epub(conf['prompts_to_display'], date_str)
-    #
-    # stat_text_prompts, stat_text_execution = format_stats(stats, conf)
+
+    stat_text_prompts, stat_text_execution = format_stats(stats, conf)
+    print(stat_text_execution)
+
     # save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
-    #
-    # print(stat_text_execution)
+
+

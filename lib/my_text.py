@@ -155,8 +155,11 @@ def repare_tags(text):
     return text
 
 
-def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, use_html_tag_guides=False, trim=True) -> dict:
-    paragraphs_list = re.split(delimiter, text)
+def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, send_with_paragraph_tag=False, use_html_tag_guides=False, trim=True) -> dict:
+    if send_with_paragraph_tag:
+        paragraphs_list = re.split('\n', text)
+    else:
+        paragraphs_list = re.split(delimiter, text)
 
     paragraphs = {}
     # using a simple number list to mark paragraph beginnings
@@ -189,6 +192,29 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, u
                 continue
             # remove id tag from p
             paragraph = re.sub(r"<p id='Pa_\d+'></p>[ ]*", "", paragraph)
+            # insert p in at the right place of the list paragraph_sorted
+            # If the index is greater than the length of the list, new elements will be created with the value `None`.
+            try:
+                paragraphs[int(id_p)] = paragraph
+            except ValueError:
+                paragraphs[i] = paragraph
+    elif send_with_paragraph_tag:
+        for i, paragraph in enumerate(paragraphs_list):
+            # find id
+            paragraph = re.sub(r'^ +$', "", paragraph)
+            if paragraph == '':
+                continue
+
+            regex = r'<item id="(\d+)">'
+            matches = re.findall(regex, paragraph)
+            if matches:
+                id_p = matches[0]
+            else:
+                return []
+                continue
+            # remove id tag from p
+            paragraph = re.sub(r'<item id="\d+">', "", paragraph)
+            paragraph = re.sub(r'</item>', "", paragraph)
             # insert p in at the right place of the list paragraph_sorted
             # If the index is greater than the length of the list, new elements will be created with the value `None`.
             try:
