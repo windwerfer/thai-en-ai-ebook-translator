@@ -3,6 +3,8 @@ import random
 import re
 import time
 
+# import win32com.client as comclt
+import pyautogui
 import pyperclip
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
@@ -17,7 +19,163 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from compare_translations import unpickle_paragraphs
 from lib import my_text
-import win32com.client as comclt
+
+
+def init_session():
+    global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles, prompt
+
+    conf = {}
+    conf['project'] = 'prj_lp_fug_01'
+
+    el = {'chatGPT': {}, 'perplexity': {}, 'aiStudio': {}}
+    el['chatGPT']['code_blocks_class'] = '.p-4'  # code element
+    el['chatGPT']['send_button_class'] = 'button[data-testid="send-button"]'  # send button
+    el['chatGPT']['answers_class'] = 'div[data-message-author-role="assistant"]'  # each anser window
+    el['chatGPT']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
+    el['chatGPT']['prompt_textarea_id'] = 'prompt-textarea'
+
+    # element changes when screenorientation changes to horizontal, just need to reassign the element with .find_element
+    # el['chatGPT']['continue_button_class'] = 'polygon[points="11 19 2 12 11 5 11 19"]'
+    el['chatGPT']['continue_button_class'] = '.-rotate-180'
+
+    # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
+    #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
+    el['chatGPT']['completed_converstion_parts_marker'] = '.w-full .text-gray-400.visible'
+
+    el['perplexity']['code_blocks_class'] = 'div.codeWrapper code'  # code element
+    el['perplexity']['send_button_class'] = '.grow button svg[data-icon="arrow-right"]'  # send button
+    el['perplexity']['send_followup_button_class'] = '.grow button svg[data-icon="arrow-up"]'  # send button
+    el['perplexity']['answers_class'] = 'div.text-textMain'  # each anser window
+    el['perplexity']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
+    el['perplexity']['prompt_textarea'] = 'textarea.col-end-4'
+    # if the botton has the class 'text-textOff' = pro disabled, 'text-super' = pro enabled
+    el['perplexity']['pro_toggle'] = 'button[data-testid="copilot-toggle"]'
+    el['perplexity']['pro_toggle_inactive'] = 'button.text-textOff[data-testid="copilot-toggle"]'
+    el['perplexity']['send_output_lang_class'] = 'textarea[placeholder="Programming language"]'
+    el['perplexity']['answer_stop_button'] = 'svg[data-icon="circle-stop"]'
+    el['perplexity']['attach_class'] = 'svg[data-icon="circle-plus"]'
+    el['perplexity']['skip_followup_button_class'] = 'svg[data-icon="forward"]'
+
+    prompt = {}
+    prompt['chatGPT'] = """
+
+    You are a translator app now. 
+
+    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
+    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
+    Output in the same structure into a code block. <item> elements can not be merged together for translation or output.
+    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+    do not include any explanations.
+
+    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg. "dukkha", "sukkha",
+    "kilesa", "Deva", "khadas", "bhāvanā", "samādhi", "vipassanā", "paññā", "nirodha", "saṅkhāra", "dhamma", "piṇḍapāta", "maha", 
+    "ārammaṇa", "kammaṭṭhāna", "vimutti", "saññā", "vedanā", "anicca", "rupa", "anattā", "saṅgha", "bhikkhu", "vinaya", "jhāna", 
+    "upekkhā", "mettā", "sammādiṭṭhi", "sīla", "paññā", "saṃsāra", "āsavā" and write them in  pali romanized 
+    (like in the example, dont translate them into suffering, happiness, defilement, angel etc). 
+
+    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Po Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+
+
+
+            """
+    prompt['claude'] = """
+
+    You are a translator app now. 
+
+    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
+    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
+    Output in the same structure into a code block (surround the xml with ```). <item> elements can not be merged together for translation or output.
+    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+    do not include any explanations.
+
+    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg. "dukkha", "sukkha",
+    "kilesa", "Deva", "khadas", "bhāvanā", "samādhi", "vipassanā", "paññā", "nirodha", "saṅkhāra", "dhamma", "piṇḍapāta", "maha", 
+    "ārammaṇa", "kammaṭṭhāna", "vimutti", "saññā", "vedanā", "anicca", "rupa", "anattā", "saṅgha", "bhikkhu", "vinaya", "jhāna", 
+    "upekkhā", "mettā", "sammādiṭṭhi", "sīla", "paññā", "saṃsāra", "āsavā" and write them in  pali romanized 
+    (like in the example, dont translate them into suffering, happiness, defilement, angel etc). 
+
+    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Po Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+
+
+
+            """
+
+    continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
+    continue_prompt = 'translate all <item> from attribute id=0 to id=90, and do not output attribute gr or tk of <item>. '
+
+    window_tab_titles = {}
+
+    user_data_dir = 'C:/Users/watdo/AppData/Local/Google/Chrome/User Data'
+
+    # Setup Chrome options to use the user data directory
+    chrome_options = webdriver.ChromeOptions()
+
+    if attach_to_chrome_remote_debug:
+        # this one line connect it to chrome remote debugg.. with the debugger account
+        # start chrome with debugg mode first:
+        #       cd "C:\Program Files\Google\Chrome\Application\"
+        #       .\chrome.exe --remote-debugging-port=9222 --user-data-dir="C:/ChromeDevSession"
+        chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+    else:
+        # this will start a new chrome instance, but with the default chrome user account
+        chrome_options.add_argument(f'user-data-dir={user_data_dir}')
+
+    # Setup ChromeDriver
+    s = Service(ChromeDriverManager().install())
+
+    # Initialize the Chrome driver with the options
+    driver = webdriver.Chrome(service=s, options=chrome_options)
+
+    # Apply stealth
+    stealth(driver,
+            languages=["en-US", "en"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+            )
+
+    if attach_to_chrome_remote_debug:
+        # Get the title of the current page
+        title = driver.title
+        print(f'current tab title: {driver.title}')
+    else:
+        # Open the new webpage
+        driver.get('https://chat.openai.com')  # Replace with the URL of the webpage you want to access
+
+    # Create an ActionChains object
+    actions = ActionChains(driver)
+
+
+def click_skip_follow_up_question(ai='perplexity', wait_for_element_loaded=0):
+    # # enter follow up input..
+    # retLangE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_output_lang_class'])
+    # actions.move_to_element(retLangE).perform()
+    #
+    # send_text_slowly(retLangE, "xml", speed=0.001)
+    # time.sleep(0.5)
+    # send_text_slowly(retLangE, "\n", speed=0.01)
+
+    try:
+        # if skip button available, click it
+        if wait_for_element_loaded > 0:
+            wait_for_element_class(el['perplexity']['skip_followup_button_class'])
+
+        skipE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['skip_followup_button_class'])
+        time.sleep(0.2)
+        actions.move_to_element(skipE).perform()
+        time.sleep(0.2)
+        skipE.click()
+        time.sleep(0.2)
+        return True
+    except Exception as e:
+        return False
+
 
 def wait_untill_no_element_with_innertext(text):
     present = True
@@ -173,6 +331,18 @@ def new_tab(url='https://chat.openai.com'):
     time.sleep(2)
 
 
+def is_perplexity_pro_enabled(alert=False):
+    try:
+        proE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['pro_toggle_inactive'])
+        # if element found => pro not enabled
+        if alert:
+            pyautogui.alert('pro not enabled!!')
+        return False
+    except Exception as e:
+        # pro is enabled
+        return True
+
+
 def is_the_answer_finished(ai='perplexity'):
     if ai == 'chatGPT':
         # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
@@ -197,87 +367,6 @@ def is_the_answer_finished(ai='perplexity'):
             print('no Stop button found -> finished ' + get_identifier())
             return True
     return False
-
-
-def init_session():
-    global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles
-
-    conf = {}
-    conf['project'] = 'prj_lp_fug_01'
-
-    el = {'chatGPT': {}, 'perplexity': {}, 'aiStudio': {}}
-    el['chatGPT']['code_blocks_class'] = '.p-4'  # code element
-    el['chatGPT']['send_button_class'] = 'button[data-testid="send-button"]'  # send button
-    el['chatGPT']['answers_class'] = 'div[data-message-author-role="assistant"]'  # each anser window
-    el['chatGPT']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
-    el['chatGPT']['prompt_textarea_id'] = 'prompt-textarea'
-
-    # element changes when screenorientation changes to horizontal, just need to reassign the element with .find_element
-    # el['chatGPT']['continue_button_class'] = 'polygon[points="11 19 2 12 11 5 11 19"]'
-    el['chatGPT']['continue_button_class'] = '.-rotate-180'
-
-    # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
-    #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
-    el['chatGPT']['completed_converstion_parts_marker'] = '.w-full .text-gray-400.visible'
-
-    el['perplexity']['code_blocks_class'] = 'div.codeWrapper code'  # code element
-    el['perplexity']['send_button_class'] = '.grow button svg[data-icon="arrow-right"]'  # send button
-    el['perplexity']['send_followup_button_class'] = '.grow button svg[data-icon="arrow-up"]'  # send button
-    el['perplexity']['answers_class'] = 'div.text-textMain'  # each anser window
-    el['perplexity']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
-    el['perplexity']['prompt_textarea'] = 'textarea.col-end-4'
-    # if the botton has the class 'text-textOff' = pro disabled, 'text-super' = pro enabled
-    el['perplexity']['pro_toggle'] = 'button[data-testid="copilot-toggle"]'
-    el['perplexity']['send_output_lang_class'] = 'textarea[placeholder="Programming language"]'
-    el['perplexity']['answer_stop_button'] = 'svg[data-icon="circle-stop"]'
-    el['perplexity']['attach_class'] = 'svg[data-icon="circle-plus"]'
-    el['perplexity']['skip_followup_button_class'] = 'svg[data-icon="forward"]'
-
-
-
-    window_tab_titles = {}
-
-    user_data_dir = 'C:/Users/watdo/AppData/Local/Google/Chrome/User Data'
-
-    # Setup Chrome options to use the user data directory
-    chrome_options = webdriver.ChromeOptions()
-
-    if attach_to_chrome_remote_debug:
-        # this one line connect it to chrome remote debugg.. with the debugger account
-        # start chrome with debugg mode first:
-        #       cd "C:\Program Files\Google\Chrome\Application\"
-        #       .\chrome.exe --remote-debugging-port=9222 --user-data-dir="C:/ChromeDevSession"
-        chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-    else:
-        # this will start a new chrome instance, but with the default chrome user account
-        chrome_options.add_argument(f'user-data-dir={user_data_dir}')
-
-    # Setup ChromeDriver
-    s = Service(ChromeDriverManager().install())
-
-    # Initialize the Chrome driver with the options
-    driver = webdriver.Chrome(service=s, options=chrome_options)
-
-    # Apply stealth
-    stealth(driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="Win32",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True,
-            )
-
-    if attach_to_chrome_remote_debug:
-        # Get the title of the current page
-        title = driver.title
-        print(f'current tab title: {driver.title}')
-    else:
-        # Open the new webpage
-        driver.get('https://chat.openai.com')  # Replace with the URL of the webpage you want to access
-
-    # Create an ActionChains object
-    actions = ActionChains(driver)
 
 
 def set_title(title):
@@ -354,6 +443,50 @@ def click_on_contiune_prompt():
     return False
 
 
+def click_send_prompt(ai='perplexity', wait_for_element_loaded=0):
+    """ wait_for_element_loaded = seconds to wait for element to be available before giving up (0=dont wait)"""
+
+    global el
+
+    # get send prompt button element
+    if ai == 'chatGPT':
+
+        if wait_for_element_loaded > 0:
+            wait_for_element_class(el['chatGPT']['send_button_class'], wait_for_element_loaded)
+
+        try:
+            sendE = driver.find_element(By.CSS_SELECTOR, el['chatGPT']['send_button_class'])
+        except Exception as e:
+            print('no send button found..')
+            return False
+
+    if ai == 'perplexity':
+        wait_untill_no_element_with_innertext("Uploading...")
+        # perplexity has 2 butoons
+
+        if wait_for_element_loaded > 0:
+            wait_for_element_class(el['perplexity']['send_button_class'], wait_for_element_loaded)
+
+        try:
+            sendE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_button_class'])
+        except Exception as e:
+            try:
+                # if it is not the first question of the prompt, the send button is not arrow-left, but arrow-up
+                sendE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_followup_button_class'])
+            except Exception as e:
+                print('no send prompt button found')
+                return False
+
+    try:
+        time.sleep(0.3)
+        actions.move_to_element(sendE).perform()
+        time.sleep(0.2)
+        sendE.click()
+        time.sleep(0.3)
+    except Exception as e:
+        print('couldnt click send on tab ' + get_identifier())
+
+
 def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste=True, project=''):
     global driver, el
 
@@ -381,8 +514,7 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
     actions.move_to_element(promptE).perform()
     promptE.click()
 
-    # enter some question
-    # promptE.send_keys(text)
+    # best option is to use paste to enter the prompt (quick)
     if use_paste:
 
         time.sleep(0.1)
@@ -395,75 +527,57 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
         # past clipboard to element
         promptE.send_keys(Keys.CONTROL + 'v')
 
-
         time.sleep(0.5)
-        # attach file
-        attach_file(pa, project, ai='perplexity')
 
-        # pyperclip.copy(pa)
+        if ai == 'chatGPT':
+            # copy xml to prompt
+            pyperclip.copy(pa)
+            # past clipboard to element
+            promptE.send_keys(Keys.CONTROL + 'v')
 
-        # past clipboard to element
-        # promptE.send_keys(Keys.CONTROL + 'v')
+        if ai == 'perplexity':
+            # attach file
+            attach_file(pa, project, ai='perplexity')
+
+            # wait until upload finished (if attaching file) before continuing
+            wait_untill_no_element_with_innertext("Uploading...")
+
+
+    # in case of the "are you human" question
     else:
-        send_text_slowly(promptE, text, speed=speed)
+        send_text_slowly(promptE, prompt + pa, speed=speed)
 
     time.sleep(3)
 
     # send the prompt
     if click_send:
-        # get send prompt button element
-        if ai == 'chatGPT':
-            try:
-                sendE = driver.find_element(By.CSS_SELECTOR, el['chatGPT']['send_button_class'])
-            except Exception as e:
-                print('no send button found..')
-                return
-        if ai == 'perplexity':
-            wait_untill_no_element_with_innertext("Uploading...")
-            # perplexity has 2 butoons
-            try:
-                sendE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_button_class'])
-            except Exception as e:
-                try:
-                    sendE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_followup_button_class'])
-                except Exception as e:
-                    print('no send prompt button found')
-                    return
 
-        try:
-            actions.move_to_element(sendE).perform()
-            sendE.click()
-            sendE.click()
-        except Exception as e:
-            print('couldnt click send on tab ' + get_identifier())
+        click_send_prompt(ai, wait_for_element_loaded=15)
+
+        time.sleep(2)
+
+        click_send_prompt(ai, wait_for_element_loaded=0)
 
         # perplexity wants to help with the output.. tell it xml
         if ai == 'perplexity':
-            # wait max 15s if perplexity asks how the output should be formated
-            wait_for_element_class(el['perplexity']['skip_followup_button_class'], max_wait=15)
-            try:
-                time.sleep(1)
 
-                # # enter follow up input..
-                # retLangE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['send_output_lang_class'])
-                # actions.move_to_element(retLangE).perform()
-                #
-                # send_text_slowly(retLangE, "xml", speed=0.001)
-                # time.sleep(0.5)
-                # send_text_slowly(retLangE, "\n", speed=0.01)
+            try:
+                time.sleep(5)
 
                 # skip follow up input, because it sometimes asks for 2 things..
-                skipE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['skip_followup_button_class'])
-                actions.move_to_element(skipE).perform()
-                time.sleep(0.2)
-                skipE.click()
+                click_skip_follow_up_question(ai, wait_for_element_loaded=15)
+
                 time.sleep(2)
+
+                # try a second time, sometimes doesnt work
+                click_skip_follow_up_question()
 
                 # retLangE.element.send_keys(Keys.ENTER)
             except Exception as e:
                 print('couldnt choose the output lang in tab ' + get_identifier())
 
         return True
+
 
 def attach_file(text, project_name, ai='perplexity'):
     # put text in clipboard
@@ -476,33 +590,83 @@ def attach_file(text, project_name, ai='perplexity'):
 
     abs_script_path = script_directory = os.path.dirname(os.path.abspath(__file__))
 
-    sleep = 1
+    # sleep = 1
     # version 1 (win10):
-    windowsShell = comclt.Dispatch("WScript.Shell")
-    time.sleep(sleep)
-    windowsShell.SendKeys(f'{abs_script_path}\\{project_name}')
-    time.sleep(sleep)
-    windowsShell.SendKeys("{ENTER}")  # can do "{TAB}" as well..
-    time.sleep(sleep)
-    windowsShell.SendKeys(f'paste_tmp.txt')
-    time.sleep(sleep)
-    windowsShell.SendKeys("{ENTER}")  # can do "{TAB}" as well..
-    time.sleep(sleep)
+    # windowsShell = comclt.Dispatch("WScript.Shell")
+    # time.sleep(sleep)
+    # windowsShell.SendKeys(f'{abs_script_path}\\{project_name}')
+    # time.sleep(sleep)
+    # windowsShell.SendKeys("{ENTER}")  # can do "{TAB}" as well..
+    # time.sleep(sleep)
+    # windowsShell.SendKeys(f'paste_tmp.txt')
+    # time.sleep(sleep)
+    # windowsShell.SendKeys("{ENTER}")  # can do "{TAB}" as well..
+    # time.sleep(sleep)
 
     # version 2 (pip install pyautogui):
     # import pyautogui
     #
     # # Optional: Wait for a few seconds to switch to the window where you want to send the keystrokes
     # time.sleep(5)
-    #
-    # # Sending a string of text
-    # pyautogui.typewrite('Hello, World!')
-    #
-    # # Sending the Enter key
-    # pyautogui.press('enter')
 
-def batch_populate(ai='perplexity', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0, nr_of_groups=1, max_tokens=4000):
-    global paragraphs
+    try:
+        time.sleep(3)
+
+        is_window_focused('Open', force=True)
+
+        time.sleep(0.5)
+
+        # go to project path
+        pyautogui.typewrite(f'{abs_script_path}\\{project_name}')
+
+        time.sleep(1)
+
+        # Sending the Enter key
+        pyautogui.press('enter')
+
+        time.sleep(1)
+
+        # open tmp file (upload)
+        pyautogui.typewrite(f'paste_tmp.txt')
+
+        time.sleep(1)
+
+        # Sending the Enter key
+        pyautogui.press('enter')
+
+        time.sleep(1)
+    except Exception as e:
+        print('Attaching file failed')
+
+
+def is_window_focused(window_title, force=False):
+    """ if force == True the window must be in the forground, or execution will be blocked"""
+    while True:
+        try:
+            # Get the currently active window
+            active_window = pyautogui.getActiveWindow()
+            # Check if the active window's title matches the desired window title
+
+            if force:
+                if active_window.title == window_title:
+                    return True
+                else:
+                    # if force is set True and the window title does not match the desired one
+                    #  display warning and than try again.
+                    pyautogui.alert('File choosing dialog not in Focus! \n\n'
+                                    'click ok and than click somewere in the file chooser dialog. \n\n'
+                                    '(script will continue 5s after the dialog is confirmed)')
+                    time.sleep(5)
+            else:
+                return active_window.title == window_title
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return False
+
+
+def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
+                   nr_of_groups=1, max_tokens=4000):
+    global paragraphs, prompt
 
     window_tab_titles = {}
 
@@ -520,35 +684,14 @@ def batch_populate(ai='perplexity', project='prj_lp_fug_01', nr_of_tabs=1, start
         if ai == 'perplexity':
             new_tab('https://www.perplexity.ai/')
 
-        prompt = """
-        
-You are a translator app now. 
-
-I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-Output in the same structure into a code block. do not include any explanations.
-
-Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg. "dukkha", "sukkha",
-"kilesa", "Deva", "khadas", "bhāvanā", "samādhi", "vipassanā", "paññā", "nirodha", "saṅkhāra", "dhamma", "piṇḍapāta", "maha", 
-"ārammaṇa", "kammaṭṭhāna", "vimutti", "saññā", "vedanā", "anicca", "rupa", "anattā", "saṅgha", "bhikkhu", "vinaya", "jhāna", 
-"upekkhā", "mettā", "sammādiṭṭhi", "sīla", "paññā", "saṃsāra", "āsavā" and write them in  pali romanized 
-(like in the example, dont translate them into suffering, happiness, defilement, angel etc). 
-
-Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Po Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
-
-
-
-        """
-
-        continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
-        continue_prompt = 'translate all <item> from attribute id=0 to id=90, and do not output attribute gr or tk of <item>. '
+        # Switch to the new window, which brings it into focus
+        window_handle = driver.current_window_handle
+        driver.switch_to.window(window_handle)
 
         pa = ''
         tc = 0
         group_counter = 0
-        title = f'p{groups[group_id_start][0] + 2}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2}_g{group_id_start}-{group_id_start - 1 + groups_to_send_per_tab}'
+        title = f'p{groups[group_id_start][0] + 2:0>3}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>3}__g{group_id_start:0>2}-{group_id_start - 1 + groups_to_send_per_tab:0>2}'
         tab_id = get_current_tab_id()
 
         # set identifier, to keep track of which tab is for what
@@ -571,9 +714,16 @@ passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me
         group_id_start = group_id_start + groups_to_send_per_tab
 
         if ai == 'perplexity':
+            # check if pro version enabled (otherwise the ai's are only very weak)
+            is_perplexity_pro_enabled(alert=True)
+
+            # change from internet search to normal query
             perplexity_set_focus('Writing')
 
-        past_prompt([prompt, pa], ai=ai, click_send=True, speed=0.0001, use_paste=True, project=project)  # speed 0.001 is pretty tame..
+        pr = prompt[model]
+
+        past_prompt([pr, pa], ai=ai, click_send=True, speed=0.0001, use_paste=True,
+                    project=project)  # speed 0.001 is pretty tame..
 
     return True
 
@@ -603,7 +753,7 @@ def get_identifier():
             return hash
     except Exception as e:
         ta = get_current_tab_id()
-        print(' problem retrieving or setting identifier in tab '+str(ta))
+        print(' problem retrieving or setting identifier in tab ' + str(ta))
 
     return ''
 
@@ -637,7 +787,15 @@ def set_identifier_div(hash):
         var newDiv = document.createElement('div');
         newDiv.id = 'myIdentifierDiv'; // Set an ID for the new div
         newDiv.innerHTML = '{hash}'; // Set content for the new div
-        document.body.appendChild(newDiv); // Append the new div to the body
+        
+        // Set style rules
+        // newDiv.style.color = 'white'; // Set text color to white
+        // newDiv.style.backgroundColor = 'black';
+        newDiv.style.cssText = "color: black; background-color: white; position: fixed; z-index: 9999; width: 160px; height: 30px; display: block;";
+        
+        // add element to very top of page (easier to see, title always gets overridden)
+        document.body.insertBefore(newDiv, document.body.firstChild); 
+        // document.body.appendChild(newDiv); // Append the new div to the body
         """
 
         # Execute the script using Selenium's execute_script method
@@ -649,7 +807,7 @@ def get_identifier_div():
         identifierE = driver.find_element(By.ID, 'myIdentifierDiv')
     except NoSuchElementException as e:
         ta = get_current_tab_id()
-        print('no identifier div tag found. tab '+str(ta))
+        print('no identifier div tag found. tab ' + str(ta))
         return ''
     return identifierE.text
 
@@ -719,6 +877,11 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
         tabs_len = len(driver.window_handles)
         for tab in range(tabs_len):
 
+            # sometimes it doesnt register the skip follow up click, so doublesave
+            click_skip_follow_up_question()
+
+            time.sleep(1)
+
             tab_id = get_current_tab_id()
             # check if tab is finished
             if not is_the_answer_finished(ai):
@@ -739,21 +902,20 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
 def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
     global window_tab_titles
 
-
     code_folder = 'code'
 
     tabs_len = len(driver.window_handles)
     for tab in range(tabs_len):
         code = ''
 
-        try: #xxx
+        try:
             codeE = get_last_element(el['perplexity']['code_blocks_class'])
             code = codeE.text
             id = get_identifier()
 
             path = f"{conf['project']}/code_collector_{ai}_{model}/"
             make_dir_if_not_exists(path)
-            with open(f"{path}/code_{model}_{id}.xml", 'w', encoding='utf-8') as file:
+            with open(f"{path}/code_{model}__{id}.xml", 'w', encoding='utf-8') as file:
                 file.write(code)
 
         except Exception as e:
@@ -762,8 +924,6 @@ def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
 
         time.sleep(1)
         goto_tab('next')
-
-
 
 
 def make_dir_if_not_exists(directory_path):
@@ -816,23 +976,25 @@ if __name__ == '__main__':
     init_session()
 
     conf['project_name'] = 'prj_lp_fug_01'
-    conf['ai'] = 'perplexity'       # perplexity pro must be enabled to use chatGPT / claude
-    conf['model'] = 'chatGPT'       # in perplexity, must be choosen in settings->default ai
+    conf['ai'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
+    conf['model'] = 'chatGPT'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
 
     # send 3 batch groups, but only process 2?
     # maybe only send max 70 paragraphs??
     # start_block starts with 0
     # nr of groups min 1
     # nr of tabs min 1
-    batch_populate(ai=conf['ai'], project=conf['project_name'], nr_of_tabs=6, start_block=10, nr_of_groups=1, max_tokens=3300)
-    #
-    time.sleep(60)
 
-    cycle_tabs_until_all_finished(max_minutes=15)
+    onlyCollect = False
+    if onlyCollect is False:
+        batch_populate(ai=conf['ai'], model=conf['model'], project=conf['project_name'],
+                       nr_of_tabs=1, start_block=1, nr_of_groups=1, max_tokens=3300)
+
+        time.sleep(60)
+
+        cycle_tabs_until_all_finished(max_minutes=15)
 
     cycle_tabs_and_collect_code_elements(ai=conf['ai'], model=conf['model'])
-
-
 
     # -- session initialized, basic functions defined, all setup and ready to go
 
