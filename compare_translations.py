@@ -40,10 +40,12 @@ def init_config():
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_groups_to_process'] = 1  # for testing: only do a view querys before finishing
 
-    conf['prompts_to_process'] = ['transliterate', 'gemini_default_2024.03', 'gemini_literal_2024.03',
+    # 'gemini_default_2024.03', 'gemini_literal_2024.03',
+    conf['prompts_to_process'] = ['transliterate',
                                   'gemini_creative_2024.03', 'gemini_k.rob_creative02']
 
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_default_2024.03', 'gemini_literal_2024.03',
+    # 'gemini_default_2024.03', 'gemini_literal_2024.03',
+    conf['prompts_to_display'] = ['original', 'transliterate', '',
                                   'gemini_creative_2024.03', 'gemini_k.rob_creative02']
 
     conf['prompts'] = {}
@@ -64,24 +66,24 @@ def init_config():
     word_annotation_hint = 'Text in Square Brackets are annotations how the word before should be handled ' + \
                            'differently. if they contain a condition, only follow the annotation if the ' + \
                            'condition is met. do not print text in square brackets.'
-
-    conf['prompts']['gemini_default_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-        'temperature': '0.5', 'top_k': '4', 'top_p': '0.45', 'engine': 'gemini', 'position': 'append',
-        'type': 'paragraph', 'use_word_substitution_list': 'default', 'use_word_annotation_list': 'default',
-        'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-
-    }
-
-    conf['prompts']['gemini_literal_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-        'temperature': '0.2', 'top_k': '1', 'top_p': '0.4',
-        'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more literal',
-        'use_word_substitution_list': 'default',
-        'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    }
+    #
+    # conf['prompts']['gemini_default_2024.03'] = {
+    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    #     'temperature': '0.5', 'top_k': '4', 'top_p': '0.45', 'engine': 'gemini', 'position': 'append',
+    #     'type': 'paragraph', 'use_word_substitution_list': 'default', 'use_word_annotation_list': 'default',
+    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
+    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    #
+    # }
+    #
+    # conf['prompts']['gemini_literal_2024.03'] = {
+    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    #     'temperature': '0.2', 'top_k': '1', 'top_p': '0.4',
+    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more literal',
+    #     'use_word_substitution_list': 'default',
+    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
+    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    # }
 
     conf['prompts']['gemini_creative_2024.03'] = {
         'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
@@ -905,9 +907,7 @@ def load_and_process_paragraphs(prompts_to_process):
     # save_paragraphs_to_xml3(paragraphs,
     #                         file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_complex.xml')
     # save_paragraphs_to_xml2(paragraphs, file_name=f'{conf['project_name']}/lp_choob_paragraphs_original_v01_medium.xml')
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok.xml', max_tokens=3200)
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
-                           max_tokens=3200, word_substitution_list=True)
+
 
 
 def save_paragraphs_to_epub(prompts_to_display, date_str):
@@ -1062,7 +1062,7 @@ def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original
             if word_substitution_list:
                 text = replace_with_word_substitution_list(text, wrap='exp')
             token_count += my_text.token_count(text)
-            SubElement(items, 'value', {'id': str(p_id + 2), 'gr':str(gr_id), 'tok':str(token_count)}).text = re.sub(r'\n',' ', text)
+            SubElement(items, 'item', {'id': str(p_id + 2), 'gr':str(gr_id), 'tk':str(token_count)}).text = re.sub(r'\n',' ', text)
 
     xml_str = tostring(items, 'utf-8')
     pretty_xml = parseString(xml_str).toprettyxml()
@@ -1075,6 +1075,8 @@ def save_paragraphs_to_xml(paragraphs, file_name, max_tokens=4000, only_original
 
 if __name__ == '__main__':
 
+    paragraphs = {}
+
     try:
         init_config()
     except Exception as e:
@@ -1086,6 +1088,10 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(prompts_to_process)
     # load_and_process_paragraphs(prompts_to_process)
     # load_and_process_paragraphs(prompts_to_process)
+
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok.xml', max_tokens=3200)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
+                           max_tokens=3200, word_substitution_list=True)
 
     now = datetime.now()
     date_str = now.strftime('%Y.%m.%d_%H%M')

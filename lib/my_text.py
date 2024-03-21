@@ -233,7 +233,7 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, s
     return paragraphs
 
 
-def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True):
+def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, add_xml_to_tokencount=True, process_only_unfinished=True):
     paragraph_groups = []
     current_group = []
     current_group_tokens = 0
@@ -252,7 +252,10 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
 
         # Check if adding the current paragraph exceeds the max_tokens limit
         #  or: check that it is a continous block of paragraphs
-        current_paragraph_tokens = token_count(paragraphs[i]['original']['text'])
+        adding = ''
+        if add_xml_to_tokencount:
+            adding = '<item id="0007"></item>'
+        current_paragraph_tokens = token_count(adding+paragraphs[i]['original']['text'])
         if current_group_tokens + current_paragraph_tokens > max_tokens or previous_added_paragraph + 1 != i:
             # If current group is not empty, add list id to paragraph_groups
             if current_group:
