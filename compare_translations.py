@@ -36,17 +36,17 @@ def init_config():
     conf = {}
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
-    conf['max_tokens_per_query__gemini'] = 2500
+    conf['max_tokens_per_query__gemini'] = 2000
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
-    conf['max_groups_to_process'] = 1  # for testing: only do a view querys before finishing
+    conf['max_groups_to_process'] = 100  # for testing: only do a view querys before finishing
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = ['transliterate',
-                                  'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_display'] = ['original', 'transliterate', '',
-                                  'gemini_creative_2024.03', 'gemini_k.rob_creative02']
+                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     conf['prompts'] = {}
 
@@ -85,24 +85,73 @@ def init_config():
     #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     # }
 
-    conf['prompts']['gemini_creative_2024.03'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    # conf['prompts']['gemini_creative_2024.03'] = {
+    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    #     'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
+    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
+    #     'use_word_substitution_list': 'default',
+    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
+    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    # }
+    #
+    # conf['prompts']['gemini_k.rob_creative02'] = {
+    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    #     'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
+    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
+    #     'use_word_substitution_list': 'default',
+    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
+    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    # }
+
+    conf['prompts']['gemini_1.0_2024.03.23'] = {
+        'prompt': """
+                    I give you a part of an xml file.
+                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+    
+                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
+                    
+                    don't put quote characters around pali terms eg.dukkha, sukkha,
+                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+                    
+                    ome special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+                    
+                    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+        
+        """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
         'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': 'default',
+        'use_word_substitution_list': False,
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
 
-    conf['prompts']['gemini_k.rob_creative02'] = {
-        'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
+    conf['prompts']['gemini_1.0_k.rob_2024.03.23'] = {
+        'prompt': """                    
+                    I give you a part of an xml file.
+                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+    
+                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
+                    
+                    don't put quote characters around pali terms eg.dukkha, sukkha,
+                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+                    
+                    ome special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+                    
+                    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+        
+        """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
         'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': 'default',
+        'use_word_substitution_list': False,
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
-
     conf['pali_terms_list_mine'] = load_word_substitution_list('lib/pali_terms_mine.txt', sep='\t')
     conf['pali_terms_list_pts'] = load_word_substitution_list('lib/pali_terms_pts.txt', sep='\t')
     conf['word_substitution_list'] = load_word_substitution_list('lib/word_substitution_list.data')
@@ -563,7 +612,10 @@ def run_queries(paragraph_groups, paragraphs, prompts):
             #  and last item of the group
             paragraphs_slice = {}
             for i in range(paragraph_ids_group[0], paragraph_ids_group[-1] + 1):
-                paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'], wrap='{}')
+                if conf['prompts'][prompt_name]['use_word_substitution_list']:
+                    paragraphs_slice[str(i)] = replace_with_word_substitution_list(paragraphs[i]['original']['text'], wrap='{}')
+                else:
+                    paragraphs_slice[str(i)] = paragraphs[i]['original']['text']
 
             # prepare the querys: a list of paragraphs to be send to the AI_query, the id of them in the original
             #  paragraphs list and the prompt that will be processed
@@ -882,7 +934,7 @@ def load_and_process_paragraphs(prompts_to_process):
     #                               prompt: prompt_text+some_paragraphs,
     #                               temperature: float, top_k=int, top_p=float}
 
-    if False:
+    if True:
         paragraph_stats = compile_paragraph_statics(paragraphs, prompts_to_process)
 
         safety_rating_overview = safety_matrix_to_text(paragraph_stats)
@@ -1084,14 +1136,16 @@ if __name__ == '__main__':
         sys.exit(1)
 
     load_and_process_paragraphs(conf['prompts_to_process'])
-    # load_and_process_paragraphs(prompts_to_process)
-    # load_and_process_paragraphs(prompts_to_process)
-    # load_and_process_paragraphs(prompts_to_process)
-    # load_and_process_paragraphs(prompts_to_process)
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
 
     save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok.xml', max_tokens=3200)
     save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
-                           max_tokens=3200, word_substitution_list=True)
+                           max_tokens=2000, word_substitution_list=True)
 
     now = datetime.now()
     date_str = now.strftime('%Y.%m.%d_%H%M')
@@ -1101,6 +1155,6 @@ if __name__ == '__main__':
     stat_text_prompts, stat_text_execution = format_stats(stats, conf)
     print(stat_text_execution)
 
-    # save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
+    save_paragraphs_to_cvs(conf['prompts_to_display'], date_str, stat_text_prompts + stat_text_execution)
 
 

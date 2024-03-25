@@ -19,7 +19,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from compare_translations import unpickle_paragraphs
 from lib import my_text
-
+from lib import time_it
 
 def init_session():
     global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles, prompt
@@ -63,17 +63,17 @@ def init_session():
 
     I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
     Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same structure into a code block. <item> elements can not be merged together for translation or output.
+    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
     all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
     do not include any explanations.
 
-    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg. "dukkha", "sukkha",
-    "kilesa", "Deva", "khadas", "bhāvanā", "samādhi", "vipassanā", "paññā", "nirodha", "saṅkhāra", "dhamma", "piṇḍapāta", "maha", 
-    "ārammaṇa", "kammaṭṭhāna", "vimutti", "saññā", "vedanā", "anicca", "rupa", "anattā", "saṅgha", "bhikkhu", "vinaya", "jhāna", 
-    "upekkhā", "mettā", "sammādiṭṭhi", "sīla", "paññā", "saṃsāra", "āsavā" and write them in  pali romanized 
-    (like in the example, dont translate them into suffering, happiness, defilement, angel etc). 
+    Translate the txt file into English (you, the awesome translator app). don't put quote characters around pali terms eg.dukkha, sukkha,
+    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
 
-    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Po Fug, พระอาจารย์มั่น = Luang Pu Mun
+    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
     passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
 
@@ -86,17 +86,17 @@ def init_session():
 
     I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
     Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same structure into a code block (surround the xml with ```). <item> elements can not be merged together for translation or output.
+    Output in the same xml structure into a code block (surround the xml with ```). <item> elements can not be merged together for translation or output.
     all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
     do not include any explanations.
 
-    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg. "dukkha", "sukkha",
-    "kilesa", "Deva", "khadas", "bhāvanā", "samādhi", "vipassanā", "paññā", "nirodha", "saṅkhāra", "dhamma", "piṇḍapāta", "maha", 
-    "ārammaṇa", "kammaṭṭhāna", "vimutti", "saññā", "vedanā", "anicca", "rupa", "anattā", "saṅgha", "bhikkhu", "vinaya", "jhāna", 
-    "upekkhā", "mettā", "sammādiṭṭhi", "sīla", "paññā", "saṃsāra", "āsavā" and write them in  pali romanized 
-    (like in the example, dont translate them into suffering, happiness, defilement, angel etc). 
+    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg.dukkha, sukkha,
+    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
 
-    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Po Fug, พระอาจารย์มั่น = Luang Pu Mun
+    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
     passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
 
@@ -536,11 +536,19 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
             promptE.send_keys(Keys.CONTROL + 'v')
 
         if ai == 'perplexity':
-            # attach file
-            attach_file(pa, project, ai='perplexity')
 
-            # wait until upload finished (if attaching file) before continuing
-            wait_untill_no_element_with_innertext("Uploading...")
+            use_attachent = False
+            if use_attachent:  # attach file for text to translate
+                # attach file
+                attach_file(pa, project, ai='perplexity')
+
+                # wait until upload finished (if attaching file) before continuing
+                wait_untill_no_element_with_innertext("Uploading...")
+            else:  # simple past for text to translate
+                # copy xml to prompt
+                pyperclip.copy(pa)
+                # past clipboard to element
+                promptE.send_keys(Keys.CONTROL + 'v')
 
 
     # in case of the "are you human" question
@@ -552,9 +560,15 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
     # send the prompt
     if click_send:
 
+        # Scroll to the bottom of the page
+        tab_scroll_to_bottom()
+
         click_send_prompt(ai, wait_for_element_loaded=15)
 
         time.sleep(2)
+
+        # Scroll to the bottom of the page
+        tab_scroll_to_bottom()
 
         click_send_prompt(ai, wait_for_element_loaded=0)
 
@@ -564,10 +578,18 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
             try:
                 time.sleep(5)
 
+                # Scroll to the bottom of the page
+                tab_scroll_to_bottom()
+
+                time.sleep(2)  # Wait for the page to load after scrolling (adjust as needed)
+
                 # skip follow up input, because it sometimes asks for 2 things..
                 click_skip_follow_up_question(ai, wait_for_element_loaded=15)
 
                 time.sleep(2)
+
+                # Scroll to the bottom of the page
+                tab_scroll_to_bottom()
 
                 # try a second time, sometimes doesnt work
                 click_skip_follow_up_question()
@@ -612,6 +634,17 @@ def attach_file(text, project_name, ai='perplexity'):
     try:
         time.sleep(3)
 
+        # # Find the window with the title 'open'
+        # windows = pyautogui.getWindowsWithTitle('Open')
+        #
+        # if len(windows) > 0:
+        #     # If the window is found, activate it to bring it to the foreground
+        #     windows[0].activate()
+        # else:
+        #     print("No window with the title 'open' found.")
+
+        click_on_open_dialog()
+
         is_window_focused('Open', force=True)
 
         time.sleep(0.5)
@@ -637,6 +670,32 @@ def attach_file(text, project_name, ai='perplexity'):
         time.sleep(1)
     except Exception as e:
         print('Attaching file failed')
+
+
+def click_on_open_dialog():
+    try:
+        # Find the window with the title 'open'
+        windows = pyautogui.getWindowsWithTitle('open')
+
+        if len(windows) > 0:
+            # If the window is found, get its coordinates and size
+            window = windows[0]
+            x, y, width, height = window.left, window.top, window.width, window.height
+
+            # Calculate the center point of the window
+            center_x = x + width // 2
+            center_y = y + height // 2
+            click_y = y + 10
+
+            # Move the mouse to the center of the window
+            pyautogui.moveTo(center_x, click_y)
+
+            # Perform a mouse click at the center of the window
+            pyautogui.click()
+        else:
+            print("No window with the title 'open' found.")
+    except Exception as e:
+        print('window open not found..')
 
 
 def is_window_focused(window_title, force=False):
@@ -665,8 +724,17 @@ def is_window_focused(window_title, force=False):
 
 
 def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
-                   nr_of_groups=1, max_tokens=4000):
+                   block_range=[], nr_of_groups=1, max_tokens=4000):
     global paragraphs, prompt
+
+
+
+    try:
+        # if a range is given, open as many tabs as there are elements
+        if len(block_range) > 0:
+            nr_of_tabs = len(block_range)
+    except Exception as e:
+        block_range = []
 
     window_tab_titles = {}
 
@@ -676,6 +744,8 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
                                                 process_only_unfinished=False)
     group_id_start = start_block
     groups_to_send_per_tab = nr_of_groups  # each with 3200 tokens (if thai, english about 900)
+    block_range_done = []
+
     for tab_id in range(nr_of_tabs):
         # new_tab('https://twitter.com/')
 
@@ -689,28 +759,67 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
         driver.switch_to.window(window_handle)
 
         pa = ''
+        pa_ids = []
         tc = 0
         group_counter = 0
-        title = f'p{groups[group_id_start][0] + 2:0>3}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>3}__g{group_id_start:0>2}-{group_id_start - 1 + groups_to_send_per_tab:0>2}'
         tab_id = get_current_tab_id()
+
+
+
+        t = {}
+        t['group_start'] = ''
+        t['group_end'] = ''
+        # case: block range give
+        if len(block_range) > 0:
+            for group_id, paragraph_ids in enumerate(groups):
+                # if max groups to send to one tab is reached -> dont add any more paragraphs
+
+                if group_id not in block_range:
+                    continue
+
+                # check if the block was already processed
+                if group_id in block_range_done:
+                    continue
+
+                # if max groups to send to one tab is reached -> dont add any more paragraphs
+                if group_counter >= groups_to_send_per_tab:
+                    continue
+
+                if group_id in block_range:
+                    pa_ids += paragraph_ids
+                    group_counter += 1
+                    if t['group_start'] == '':
+                        t['group_start'] = group_id
+                    t['group_end'] = group_id
+                    block_range_done.append(group_id)
+            title = f'p{pa_ids[0] + 2:0>3}-{pa_ids[-1] + 2:0>3}__g{t['group_start']:0>2}-{t['group_end']:0>2}'
+
+
+        else:
+
+            # case: no block range is given, but start paragraph
+            for group_id, paragraph_ids in enumerate(groups):
+                # start to add paragraphs when not yet pasted
+                if group_id_start > group_id:
+                    continue
+                # if max groups to send to one tab is reached -> dont add any more paragraphs
+                if group_counter >= groups_to_send_per_tab:
+                    continue
+                group_counter += 1
+                pa_ids +=  paragraph_ids
+
+            title = f'p{groups[group_id_start][0] + 2:0>3}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>3}__g{group_id_start:0>2}-{group_id_start - 1 + groups_to_send_per_tab:0>2}'
 
         # set identifier, to keep track of which tab is for what
         set_identifier(title)
 
-        for group_id, paragraph_ids in enumerate(groups):
-            # start to add paragraphs when not yet pasted
-            if group_id_start > group_id:
-                continue
-            # if max groups to send to one tab is reached -> dont add any more paragraphs
-            if group_counter >= groups_to_send_per_tab:
-                continue
-            group_counter += 1
-            for paragraph_id in paragraph_ids:
-                item = paragraphs[paragraph_id]['original']['text']
-                item = re.sub(r'\n', ' ', item)
-                tc += my_text.token_count(item)
-                # pa += f'   <item id="{paragraph_id + 2}" gr="{group_id}" tk="{tc}">{item}</item>\n'
-                pa += f'   <item id="{paragraph_id + 2}">{item}</item>\n'
+        for paragraph_id in pa_ids:
+            item = paragraphs[paragraph_id]['original']['text']
+            item = re.sub(r'\n', ' ', item)
+            tc += my_text.token_count(item)
+            # pa += f'   <item id="{paragraph_id + 2}" gr="{group_id}" tk="{tc}">{item}</item>\n'
+            pa += f'   <item id="{paragraph_id + 2}">{item}</item>\n'
+
         group_id_start = group_id_start + groups_to_send_per_tab
 
         if ai == 'perplexity':
@@ -747,6 +856,7 @@ def get_identifier():
             return div
 
         hash = get_identifier_hash()
+        hash = hash[1:]  # is returned with '#' as first char
         if hash != '':
             set_identifier_div(hash)
             set_title(hash)
@@ -877,6 +987,11 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
         tabs_len = len(driver.window_handles)
         for tab in range(tabs_len):
 
+            # Scroll to the bottom of the page
+            tab_scroll_to_bottom()
+
+            time.sleep(2)  # Wait for the page to load after scrolling (adjust as needed)
+
             # sometimes it doesnt register the skip follow up click, so doublesave
             click_skip_follow_up_question()
 
@@ -899,6 +1014,29 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
         time.sleep(60)
 
 
+def cycle_tabs_and_close_tabs_starting_with(url_start='https://www.perplexity.ai/'):
+    global window_tab_titles
+
+    code_folder = 'code'
+
+    tabs_len = len(driver.window_handles)
+    for tab in range(tabs_len):
+        code = ''
+
+        try:
+
+            # close tab if code is retrieved
+            tab_close_if_url_starts_with(url_start=url_start)
+
+        except Exception as e:
+            ta = get_current_tab_id()
+            print(f' could not close tab {ta}.')
+
+        time.sleep(1)
+
+        goto_tab('next')
+
+
 def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
     global window_tab_titles
 
@@ -909,8 +1047,11 @@ def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
         code = ''
 
         try:
+
+            tab_scroll_to_bottom()
+
             codeE = get_last_element(el['perplexity']['code_blocks_class'])
-            code = codeE.text
+            code = codeE.text + '\n'
             id = get_identifier()
 
             path = f"{conf['project']}/code_collector_{ai}_{model}/"
@@ -918,11 +1059,13 @@ def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
             with open(f"{path}/code_{model}__{id}.xml", 'w', encoding='utf-8') as file:
                 file.write(code)
 
+
         except Exception as e:
             ta = get_current_tab_id()
             print(f' no code block in tab {ta}.')
 
         time.sleep(1)
+
         goto_tab('next')
 
 
@@ -959,6 +1102,42 @@ def cycle_tabs_and_start_pompts(click_continue_if_available=True):
         goto_tab('next')
 
 
+def tab_scroll_to_bottom():
+    try:
+        # Scroll to the bottom of the page
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    except Exception as e:
+        print("somehow, couldnt scoll down..")
+
+
+def tab_close_if_url_starts_with(url_start='https://www.perplexity.ai/'):
+    global driver
+
+    # Store the original window handle for later use
+    original_window = driver.current_window_handle
+
+    # Get a list of all open tabs' window handles
+    open_tabs = driver.window_handles
+
+    for tab in open_tabs:
+        # Switch to the tab
+        driver.switch_to.window(tab)
+        # Check if the tab's URL starts with the specified URL
+        if driver.current_url.startswith(url_start):
+            # Close the tab
+            driver.close()
+            # Break the loop if you only want to close the first matching tab
+            break
+
+    # Check if the original tab is still open
+    if original_window in driver.window_handles:
+        # Switch back to the original tab
+        driver.switch_to.window(original_window)
+    else:
+        # If the original tab was closed, switch to the first remaining tab
+        driver.switch_to.window(driver.window_handles[0])
+
+
 if __name__ == '__main__':
     ############# config ###########
 
@@ -973,11 +1152,15 @@ if __name__ == '__main__':
     # TODO: get elements through: div[data-message-author-role="user"] / div[data-message-author-role="assistant"]  -> each new prompt will create a new one, so the last element will be the most recent prompt
     #           data-message-author-role='user'  > code   should display the last code block, and also should show if there is one or if there is an error..
 
+    time_it.timer_start()
+
     init_session()
+
+    print(' -------- time since program started: ', time_it.elaplsed())
 
     conf['project_name'] = 'prj_lp_fug_01'
     conf['ai'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
-    conf['model'] = 'chatGPT'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['model'] = 'claude'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
 
     # send 3 batch groups, but only process 2?
     # maybe only send max 70 paragraphs??
@@ -985,28 +1168,45 @@ if __name__ == '__main__':
     # nr of groups min 1
     # nr of tabs min 1
 
+    # max token 3300 works well for chatGPT
+    # max token 3000 for claude seems too much.. 30% returns
+    #  manually is easyer than less tokens i think..
     onlyCollect = False
-    if onlyCollect is False:
+    onlyCollect = True
+
+    i = 0
+    start_block = 51
+    nr_of_tabs = 10
+    nr_of_cycles = 4
+    block_range = []
+    # block_range = [48,47]
+    while True:
+
         batch_populate(ai=conf['ai'], model=conf['model'], project=conf['project_name'],
-                       nr_of_tabs=1, start_block=1, nr_of_groups=1, max_tokens=3300)
+                       nr_of_tabs=nr_of_tabs, block_range=block_range, start_block=nr_of_tabs * i + start_block, nr_of_groups=1, max_tokens=1800)
 
-        time.sleep(60)
+        cycle_tabs_until_all_finished(max_minutes=5)
 
-        cycle_tabs_until_all_finished(max_minutes=15)
+        cycle_tabs_and_collect_code_elements(ai=conf['ai'], model=conf['model'])
 
-    cycle_tabs_and_collect_code_elements(ai=conf['ai'], model=conf['model'])
+        i += 1
+        # if i > nr_of_cycles:
+        #     break
 
-    # -- session initialized, basic functions defined, all setup and ready to go
+        # if block range has min 1 element -> only one cycle
+        try:
+            if len(block_range) > 0:
+                break
+        except Exception as e:
+            pass
 
-    # test_basic_elements()
-    # 2x 6 -> quota reached, 1x6 -> works great.. test with 8?
-    # batch_populate(ai='chatGPT', nr_of_tabs=9, start_block=54)
+        cycle_tabs_and_close_tabs_starting_with(url_start='https://www.perplexity.ai/')
 
-    # cycle_tabs_and_start_pompts(click_continue_if_available=True)
 
-    # cycle_tabs_and_continue_output()
 
-    time.sleep(2)
+        print(f' -------- time since program started (loop {i}): ', time_it.elaplsed())
+
+        time.sleep(6*60)
 
     # # Close the browser
     driver.quit()
