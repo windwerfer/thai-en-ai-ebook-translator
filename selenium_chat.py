@@ -17,12 +17,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium_stealth import stealth
 from webdriver_manager.chrome import ChromeDriverManager
 
-from compare_translations import unpickle_paragraphs
+from compare_translations import unpickle_paragraphs, pickle_paragraphs
 from lib import my_text
 from lib import time_it
 
 def init_session():
-    global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles, prompt
+    global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles, prompt, paragraphs
 
     conf = {}
     conf['project'] = 'prj_lp_fug_01'
@@ -33,6 +33,15 @@ def init_session():
     el['chatGPT']['answers_class'] = 'div[data-message-author-role="assistant"]'  # each anser window
     el['chatGPT']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
     el['chatGPT']['prompt_textarea_id'] = 'prompt-textarea'
+
+    el = {'chatGPT': {}, 'perplexity': {}, 'aiStudio': {}}
+    el['aiStudio']['code_blocks_class'] = '.p-4'  # code element
+    el['aiStudio']['send_button_class'] = 'button[data-testid="send-button"]'  # send button
+    el['aiStudio']['answers_class'] = 'div.editor div.ql-editor'  # each anser window
+    el['aiStudio']['stop_button'] = 'button.run-button.stoppable'
+    el['aiStudio']['run_button'] = 'button.run-button'
+    el['aiStudio']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
+    el['aiStudio']['prompt_textarea'] = 'div.editor div'
 
     # element changes when screenorientation changes to horizontal, just need to reassign the element with .find_element
     # el['chatGPT']['continue_button_class'] = 'polygon[points="11 19 2 12 11 5 11 19"]'
@@ -76,7 +85,7 @@ def init_session():
 
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
-    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
 
 
 
@@ -99,14 +108,37 @@ def init_session():
 
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
-    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
 
 
 
             """
+    prompt['gemini_1.5'] = """
+
+    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
+    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
+    <item> elements can not be merged together for translation or output.
+    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+    do not include any explanations.
+
+    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg.dukkha, sukkha,
+    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+
+    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+
+    -----xml text:-----
+
+"""
 
     continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
     continue_prompt = 'translate all <item> from attribute id=0 to id=90, and do not output attribute gr or tk of <item>. '
+
+
 
     window_tab_titles = {}
 
@@ -370,6 +402,14 @@ def is_server_error(retries=0, reload=True, pause_between_retries=60, alert=Fals
     return True
 
 def is_the_answer_finished(ai='perplexity'):
+    if ai == 'aiStudio':
+        try:
+            stop_button = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['stop_button'])
+            return False
+        except Exception as e:
+            print('no Stop button found -> finished ' + get_identifier())
+            return True
+
     if ai == 'chatGPT':
         # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
         #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
@@ -513,25 +553,31 @@ def click_send_prompt(ai='perplexity', wait_for_element_loaded=0):
         print('couldnt click send on tab ' + get_identifier())
 
 
-def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste=True, project=''):
+def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use_paste=True, project=''):
     global driver, el
 
     prompt, pa = text
 
     # test for el['perplexity']['answers_class']
-    if ai == 'chatGPT':
+    if platform == 'chatGPT':
         wait_for_element_id(el['chatGPT']['prompt_textarea_id'], 30)
 
-    if ai == 'perplexity':
+    if platform == 'perplexity':
         wait_for_element_class(el['perplexity']['prompt_textarea'], 30)
+
+    if platform == 'aiStudio':
+        wait_for_element_class(el['aiStudio']['prompt_textarea'], 30)
 
     # get text input element
     try:
-        if ai == 'chatGPT':
+        if platform == 'chatGPT':
             promptE = driver.find_element(By.ID, el['chatGPT']['prompt_textarea_id'])
 
-        if ai == 'perplexity':
+        if platform == 'perplexity':
             promptE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['prompt_textarea'])
+
+        if platform == 'aiStudio': #xxxx
+            promptE = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['prompt_textarea'])
 
     except NoSuchElementException as e:
         print('no prompt input field found! ' + get_identifier())
@@ -555,13 +601,33 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
 
         time.sleep(0.5)
 
-        if ai == 'chatGPT':
+        if platform == 'aiStudio':
+
+            answer_marker = '\n\n-----Ai answer text:-----'
+
+            # copy xml to prompt
+            pyperclip.copy(pa + answer_marker)
+            # past clipboard to element
+            promptE.send_keys(Keys.CONTROL + 'v')
+
+            time.sleep(2.1)
+
+            promptE.send_keys(Keys.CONTROL + Keys.ENTER)
+
+            click_send = False   # shortcut to send -> easy
+
+            tab_scroll_to_bottom(platform='aiStudio')
+
+            time.sleep(20)  # maybe 10 works as well, easily too much
+
+        if platform == 'chatGPT':
             # copy xml to prompt
             pyperclip.copy(pa)
             # past clipboard to element
             promptE.send_keys(Keys.CONTROL + 'v')
 
-        if ai == 'perplexity':
+
+        if platform == 'perplexity':
 
             use_attachent = False
             if use_attachent:  # attach file for text to translate
@@ -589,17 +655,17 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
         # Scroll to the bottom of the page
         tab_scroll_to_bottom()
 
-        click_send_prompt(ai, wait_for_element_loaded=15)
+        click_send_prompt(platform, wait_for_element_loaded=15)
 
         time.sleep(2)
 
         # Scroll to the bottom of the page
         tab_scroll_to_bottom()
 
-        click_send_prompt(ai, wait_for_element_loaded=0)
+        click_send_prompt(platform, wait_for_element_loaded=0)
 
         # perplexity wants to help with the output.. tell it xml
-        if ai == 'perplexity':
+        if platform == 'perplexity':
 
             try:
                 time.sleep(5)
@@ -610,7 +676,7 @@ def past_prompt(text, ai='perplexity', click_send=False, speed=0.0001, use_paste
                 time.sleep(2)  # Wait for the page to load after scrolling (adjust as needed)
 
                 # skip follow up input, because it sometimes asks for 2 things..
-                click_skip_follow_up_question(ai, wait_for_element_loaded=15)
+                click_skip_follow_up_question(platform, wait_for_element_loaded=15)
 
                 time.sleep(2)
 
@@ -749,7 +815,7 @@ def is_window_focused(window_title, force=False):
             return False
 
 
-def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
+def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
                    block_range=[], nr_of_groups=1, max_tokens=4000):
     global paragraphs, prompt
 
@@ -764,8 +830,6 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
 
     window_tab_titles = {}
 
-    paragraphs = unpickle_paragraphs(project)
-
     groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name='to_xml',
                                                 process_only_unfinished=False)
     group_id_start = start_block
@@ -775,16 +839,19 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
     for tab_id in range(nr_of_tabs):
         # new_tab('https://twitter.com/')
 
-        if ai == 'chatGPT':
+        if platform == 'chatGPT':
             new_tab('https://chat.openai.com/')
-        if ai == 'perplexity':
+        if platform == 'perplexity':
             new_tab('https://www.perplexity.ai/')
+        if platform == 'aiStudio':
+            new_tab('https://aistudio.google.com/app/prompts/1aIq5b6sauz4Zr1wn8Qai4esCB7XBX7kn')  # already saved prompt, with safety blocker disabled
+            wait_for_element_class(el['aiStudio']['prompt_textarea'], max_wait=20)
 
         # Switch to the new window, which brings it into focus
         window_handle = driver.current_window_handle
         driver.switch_to.window(window_handle)
 
-        if ai == 'perplexity':
+        if platform == 'perplexity':
             # check if pro version enabled (otherwise the ai's are only very weak)
             # is_perplexity_pro_enabled(alert=True)
 
@@ -826,8 +893,8 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
                     block_range_done.append(group_id)
             # if there are no more paragraphs to process
             if len(pa_ids) == 0:
-                return True
-            title = f'p{pa_ids[0] + 2:0>4}-{pa_ids[-1] + 2:0>4}__g{t['group_start']:0>3}-{t['group_end']:0>3}'
+                return 'no more paragraphs'
+            title = f'p{pa_ids[0] + 2:0>4}-{pa_ids[-1] + 2:0>4}__g{t['group_start']:0>3}'       # -{t['group_end']:0>3}
 
 
         else:
@@ -845,8 +912,8 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
 
             # if there are no more paragraphs to process
             if len(pa_ids) == 0:
-                return True
-            title = f'p{groups[group_id_start][0] + 2:0>4}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>4}__g{group_id_start:0>3}-{group_id_start - 1 + groups_to_send_per_tab:0>3}'
+                return 'no more paragraphs'
+            title = f'p{groups[group_id_start][0] + 2:0>4}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>4}__g{group_id_start:0>3}'        # -{group_id_start - 1 + groups_to_send_per_tab:0>3}
 
         # set identifier, to keep track of which tab is for what
         set_identifier(title)
@@ -860,7 +927,7 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
 
         group_id_start = group_id_start + groups_to_send_per_tab
 
-        if ai == 'perplexity':
+        if platform == 'perplexity':
             # check if pro version enabled (otherwise the ai's are only very weak)
             is_perplexity_pro_enabled(alert=True)
 
@@ -871,7 +938,7 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
 
         pr = prompt[model]
 
-        past_prompt([pr, pa], ai=ai, click_send=True, speed=0.0001, use_paste=True,
+        past_prompt([pr, pa], platform=platform, click_send=True, speed=0.0001, use_paste=True,
                     project=project)  # speed 0.001 is pretty tame..
 
     return True
@@ -933,19 +1000,41 @@ def get_identifier_hash():
 
 def set_identifier_div(hash):
     if get_identifier_div() == '':
-        script = f"""
-        var newDiv = document.createElement('div');
-        newDiv.id = 'myIdentifierDiv'; // Set an ID for the new div
-        newDiv.innerHTML = '{hash}'; // Set content for the new div
+        script = """
         
-        // Set style rules
-        // newDiv.style.color = 'white'; // Set text color to white
-        // newDiv.style.backgroundColor = 'black';
-        newDiv.style.cssText = "color: black; background-color: white; position: fixed; z-index: 9999; width: 160px; height: 30px; display: block;";
+        if (window.trustedTypes && trustedTypes.createPolicy) {
+            // Create a Trusted Types policy
+            const policy = trustedTypes.createPolicy('default', {
+                createHTML: (string) => string, // Define the TrustedHTML creation logic
+            });
         
-        // add element to very top of page (easier to see, title always gets overridden)
-        document.body.insertBefore(newDiv, document.body.firstChild); 
-        // document.body.appendChild(newDiv); // Append the new div to the body
+            // Create a new div element
+            var newDiv = document.createElement('div');
+            newDiv.id = 'myIdentifierDiv'; // Set an ID for the new div
+        
+            // Use the Trusted Types policy to set the innerHTML
+            newDiv.innerHTML = policy.createHTML('""" + hash + """'); // Set content for the new div
+        
+            // Set style rules
+            newDiv.style.cssText = "color: black; background-color: white; position: fixed; z-index: 9999; width: 200px; height: 30px; display: block;";
+        
+            // Add element to very top of page (easier to see, title always gets overridden)
+            document.body.insertBefore(newDiv, document.body.firstChild);
+        } else {
+            // Fallback if Trusted Types are not supported
+            var newDiv = document.createElement('div');
+            newDiv.id = 'myIdentifierDiv'; // Set an ID for the new div
+            newDiv.innerHTML = '""" + hash + """'; // Set content for the new div
+            
+            // Set style rules
+            newDiv.style.cssText = "color: black; background-color: white; position: fixed; z-index: 9999; width: 200px; height: 30px; display: block;";
+            
+            // add element to very top of page (easier to see, title always gets overridden)
+            document.body.insertBefore(newDiv, document.body.firstChild); 
+        }
+    
+    
+    
         """
 
         # Execute the script using Selenium's execute_script method
@@ -1017,7 +1106,7 @@ def cycle_tabs_and_continue_output():
         time.sleep(60)
 
 
-def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
+def cycle_tabs_until_all_finished(platform='perplexity', model='claude', max_minutes=15):
     global window_tab_titles
 
     for i in range(max_minutes):
@@ -1028,18 +1117,22 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
         for tab in range(tabs_len):
 
             # Scroll to the bottom of the page
-            tab_scroll_to_bottom()
+            if platform == 'aiStudio':
+                tab_scroll_to_bottom(platform='aiStudio')
+            else:
+                tab_scroll_to_bottom()
 
             time.sleep(2)  # Wait for the page to load after scrolling (adjust as needed)
 
             # sometimes it doesnt register the skip follow up click, so doublesave
-            click_skip_follow_up_question()
+            if platform == 'perplexity':
+                click_skip_follow_up_question()
 
             time.sleep(1)
 
             tab_id = get_current_tab_id()
             # check if tab is finished
-            if not is_the_answer_finished(ai):
+            if not is_the_answer_finished(platform):
                 still_running = True
                 print(f'still typing id_{tab_id}' + get_identifier())
 
@@ -1054,14 +1147,21 @@ def cycle_tabs_until_all_finished(ai='perplexity', max_minutes=15):
         time.sleep(60)
 
 
-def cycle_tabs_and_close_tabs_starting_with(url_start='https://www.perplexity.ai/'):
+def cycle_tabs_and_close_tabs_starting_with(platform='perplexity'):
     global window_tab_titles
 
     code_folder = 'code'
 
+    if platform == 'perplexity':
+        url_start = 'https://www.perplexity.ai/'
+    if platform == 'aiStudio':
+        url_start = 'https://aistudio.google.com/'
+
+
     tabs_len = len(driver.window_handles)
     for tab in range(tabs_len):
         code = ''
+
 
         try:
 
@@ -1077,7 +1177,7 @@ def cycle_tabs_and_close_tabs_starting_with(url_start='https://www.perplexity.ai
         goto_tab('next')
 
 
-def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
+def cycle_tabs_and_collect_code_elements(platform='perplexity', model='chatGPT'):
     global window_tab_titles
 
     code_folder = 'code'
@@ -1089,12 +1189,40 @@ def cycle_tabs_and_collect_code_elements(ai='perplexity', model='chatGPT'):
         try:
 
             tab_scroll_to_bottom()
-
-            codeE = get_last_element(el['perplexity']['code_blocks_class'])
-            code = codeE.text + '\n'
             id = get_identifier()
 
-            path = f"{conf['project']}/code_collector_{ai}_{model}/"
+            if platform == 'perplexity':
+                codeE = get_last_element(el['perplexity']['code_blocks_class'])
+                code = codeE.text + '\n'
+            if platform == 'aiStudio':
+                pattern = r"```(.*?)```"
+                promptE = get_last_element(el['aiStudio']['answers_class'])
+                complete_text = promptE.text
+
+                # The specific block of text you want to remove, including newlines
+                pattern = r'.*-----Ai answer text:-----'
+
+                # Use re.sub() to remove the block of text from the text variable
+                # re.escape() is used to escape special characters in the text_to_remove
+                code = re.sub(pattern, '', complete_text, flags=re.DOTALL)
+
+                # matches = re.findall(pattern, complete_text, re.DOTALL)
+                # if matches:
+                #     code = matches[-1]          # last code element, if multiple found
+                #     # print(complete_text)
+                # else:
+                #     # The specific block of text you want to remove, including newlines
+                #     pattern = r'.*-----Ai answer text:-----'
+                #
+                #     # Use re.sub() to remove the block of text from the text variable
+                #     # re.escape() is used to escape special characters in the text_to_remove
+                #     code = re.sub(pattern, '', complete_text, flags=re.DOTALL)
+                #
+                #     # print("No code block found -> try textarea - prompttext.." + id)
+
+
+
+            path = f"{conf['project']}/code_collector_{platform}_{model}/"
             make_dir_if_not_exists(path)
             with open(f"{path}/code_{model}__{id}.xml", 'w', encoding='utf-8') as file:
                 file.write(code)
@@ -1142,10 +1270,14 @@ def cycle_tabs_and_start_pompts(click_continue_if_available=True):
         goto_tab('next')
 
 
-def tab_scroll_to_bottom():
+def tab_scroll_to_bottom(platform=''):
     try:
         # Scroll to the bottom of the page
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        if platform == 'aiStudio':
+            promptE = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['prompt_textarea'])
+            driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", promptE)
+        else:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     except Exception as e:
         print("somehow, couldnt scoll down..")
 
@@ -1206,7 +1338,101 @@ def tab_close_if_url_starts_with(url_start='https://www.perplexity.ai/'):
         driver.switch_to.window(driver.window_handles[0])
 
 
+def check_missing_ids(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pattern_item=r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>', successful_groups_to_pickle=True):
+
+    global paragraphs
+
+    missing = []
+
+    # Compile the regular expression pattern for the filename
+    filename_regex = re.compile(pattern_filename)
+    # Compile the regular expression pattern for the item
+    # pattern_item = r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>'
+    item_id_regex = re.compile(pattern_item, re.MULTILINE)
+
+    # Iterate over all files in the given directory
+    for filename in os.listdir(directory):
+        # Match the pattern to extract start_id and end_id
+        match = filename_regex.match(filename)
+        if match:
+            start_id, end_id, group_id = map(int, match.groups())
+            file_path = os.path.join(directory, filename)
+
+            # Read the file content
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file_content = file.read()
+
+                # Extract all item IDs and values from the file content
+                items = [(int(m.group(1)), m.group(2)) for m in item_id_regex.finditer(file_content)]
+
+                # Generate the expected range of IDs
+                expected_ids = set(range(start_id, end_id + 1))
+
+                # Find missing IDs
+                actual_ids = {item[0] for item in items}
+                missing_ids = sorted(expected_ids - actual_ids)
+
+                if missing_ids:
+                    missing.append((filename, missing_ids, group_id))
+                else:
+                    if successful_groups_to_pickle:
+                        model = conf['model']
+                        for item in items:
+                            try:
+                                true_id = item[0] - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
+                                paragraphs[true_id]
+                                try:
+                                    paragraphs[true_id][model]['text'] = item[1]
+                                except Exception as e:
+                                    paragraphs[true_id][model] = {}
+                                    paragraphs[true_id][model]['text'] = item[1]
+                            except Exception as e:
+                                print(f'-paragraph id {true_id} not in paragraphs -> ignored.')
+
+
+                        pickle_paragraphs(conf['project_name'], paragraphs_direct=paragraphs)
+    return missing
+def check_missing_ids0(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pattern_item=r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>', write_complet_groups_to_pickle=False):
+    missing = []
+
+    # Compile the regular expression pattern for the filename
+    filename_regex = re.compile(pattern_filename)
+    # Compile the regular expression pattern for the item id
+    item_id_regex = re.compile(pattern_item, re.MULTILINE)
+
+    # Iterate over all files in the given directory
+    for filename in os.listdir(directory):
+        # Match the pattern to extract start_id and end_id
+        match = filename_regex.match(filename)
+        if match:
+            start_id, end_id, group_id = map(int, match.groups())
+            file_path = os.path.join(directory, filename)
+
+            # Read the file content
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file_content = file.read()
+
+                # Extract all item IDs from the file content
+                item_ids = [int(m.group(1)) for m in item_id_regex.finditer(file_content)]
+
+                # Generate the expected range of IDs
+                expected_ids = set(range(start_id, end_id + 1))
+
+                # Find missing IDs
+                missing_ids = sorted(expected_ids - set(item_ids))
+
+                if missing_ids:
+                    missing.append((filename, missing_ids, group_id))
+
+
+    return missing
+
+
+
+
 if __name__ == '__main__':
+
+
     ############# config ###########
 
     # choose if attaching to already runnig chrome or create new instance
@@ -1222,48 +1448,52 @@ if __name__ == '__main__':
 
     time_it.timer_start()
 
+
+
+
     init_session()
 
     print(' -------- time since program started: ', time_it.elaplsed())
-
-    conf['project_name'] = 'prj_lp_fug_01'
-    conf['ai'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
-    # chatGPT claude
-    conf['model'] = 'claude'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
-
-    # send 3 batch groups, but only process 2?
-    # maybe only send max 70 paragraphs??
-    # start_block starts with 0
-    # nr of groups min 1
-    # nr of tabs min 1
-
-    # max token 3300 works well for chatGPT
-    # max token 3000 for claude seems too much.. 30% returns
-    #  manually is easyer than less tokens i think..
-    onlyCollect = False
-    onlyCollect = True
-
     i = 0
 
+    # best ratio token/success: 1800Token (thai text)
+    #  second best: 1000Token (thai text) - for groups that dont match paragraphs even after a couple of attempts
 
 
-    start_block = 101
-    nr_of_tabs = 10
-    nr_of_cycles = 5
-    block_range = []
-    # block_range = [48,47]
+
+    # chatGPT claude
+    conf['project_name'] = 'prj_lp_fug_01'
+    conf['platform'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
+    conf['model'] = 'chatGPT'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['platform'] = 'aiStudio'  # perplexity pro must be enabled to use chatGPT / claude
+    conf['model'] = 'gemini_1.5'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    start_block = 31
+    nr_of_tabs = 5
+    nr_of_cycles = 200     # starts at 0
+    block_range = []    # block_range = [48,47]
+    paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
     while True:
 
-        batch_populate(ai=conf['ai'], model=conf['model'], project=conf['project_name'],
-                       nr_of_tabs=nr_of_tabs, block_range=block_range, start_block=nr_of_tabs * i + start_block, nr_of_groups=1, max_tokens=1800)
+        ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],
+                             nr_of_tabs=nr_of_tabs, block_range=block_range,
+                             start_block=nr_of_tabs * i + start_block, nr_of_groups=1,
+                             max_tokens=1800)
 
-        cycle_tabs_until_all_finished(max_minutes=5)
 
-        cycle_tabs_and_collect_code_elements(ai=conf['ai'], model=conf['model'])
+        cycle_tabs_until_all_finished(platform=conf['platform'], max_minutes=5)
+
+        cycle_tabs_and_collect_code_elements(platform=conf['platform'], model=conf['model'])
 
         i += 1
-        # if i > nr_of_cycles:
-        #     break
+        if i > nr_of_cycles:
+            break
+
+        # all groups processed -> end loop
+        try:
+            if ret == 'no more paragraphs':
+                break
+        except Exception as e:
+            pass
 
         # if block range has min 1 element -> only one cycle
         try:
@@ -1272,17 +1502,26 @@ if __name__ == '__main__':
         except Exception as e:
             pass
 
-        cycle_tabs_and_close_tabs_starting_with(url_start='https://www.perplexity.ai/')
+        cycle_tabs_and_close_tabs_starting_with(conf['platform'])
 
 
 
         print(f' -------- time since program started (loop {i}): ', time_it.elaplsed())
 
-        time.sleep(6*60)
+        time.sleep(3*60)
 
-    misses = find_missing_numbers(directory=f'{conf['project_name']}/code_collector_{conf['ai']}_{conf['model']}/', pattern=r'.*_g(\d+).*')
+    folder = f'{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}/'
+    misses = find_missing_numbers(directory=folder, pattern=r'.*_g(\d+).*')
+    misses_pa = check_missing_ids(directory=folder, successful_groups_to_pickle=True)
 
-    print('missed paragraphs: ' + str(misses))
+    t = ''
+    g = []
+    print('\n\nmissed groups (no file): ' + str(misses))
+    for mp in misses_pa:
+        t += f'  {mp[0]}: paragraphs {str(mp[1])}\n'
+        g.append(mp[2])
+    print('missed groups (paragraph missmatch): ' + str(g))
+    print(f'  files incomplet:\n{t}')
 
     # # Close the browser
     driver.quit()

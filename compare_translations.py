@@ -36,7 +36,7 @@ def init_config():
     conf = {}
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
-    conf['max_tokens_per_query__gemini'] = 2000
+    conf['max_tokens_per_query__gemini'] = 1800     # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_groups_to_process'] = 100  # for testing: only do a view querys before finishing
 
@@ -45,7 +45,7 @@ def init_config():
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'claude', 'chatGPT',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     conf['prompts'] = {}
@@ -116,9 +116,9 @@ def init_config():
                     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
                     (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
                     
-                    ome special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
                     
-                    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+                    passages / quotes in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
         
         """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
@@ -141,9 +141,9 @@ def init_config():
                     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
                     (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
                     
-                    ome special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
                     
-                    passages / quotes in pali need to be romanized and put in quotes (eg. "Evaṃ me sutaṃ"). Take special care to translate places and names correctly.
+                    passages / quotes in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
         
         """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
@@ -297,8 +297,10 @@ def wrap_text(text):
     return wrapped_text
 
 
-def pickle_paragraphs(project_dir):
+def pickle_paragraphs(project_dir, paragraphs_direct=[]):
     global paragraphs
+    if len(paragraphs_direct) > 0:
+        paragraphs = paragraphs_direct
     file = f'{project_dir}/saved_paragraphs.pickle'
     with open(file, 'wb') as f:
         pickle.dump(paragraphs, f)
@@ -1009,10 +1011,13 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
                 if pr == '':
                     row.append('')
                     continue
-                text1 = re.sub(r'\n',' ', p[pr]['text'])
-                text1 = re.sub('\n',' ', text1)
-                text1 = re.sub(r'\t',' ', text1)
-                text1 = re.sub('\t',' ', text1)
+                try:
+                    text1 = re.sub(r'\n',' ', p[pr]['text'])
+                    text1 = re.sub('\n',' ', text1)
+                    text1 = re.sub(r'\t',' ', text1)
+                    text1 = re.sub('\t',' ', text1)
+                except Exception as e:
+                    print('  csv export: no {str(pr)} element in paragraph or no text var..')
                 row.append(text1)
             else:
                 row.append('')
@@ -1136,6 +1141,13 @@ if __name__ == '__main__':
         sys.exit(1)
 
     load_and_process_paragraphs(conf['prompts_to_process'])
+    load_and_process_paragraphs(conf['prompts_to_process'])
+    load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
@@ -1143,9 +1155,9 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok.xml', max_tokens=3200)
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
-                           max_tokens=2000, word_substitution_list=True)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_1800tok.xml', max_tokens=1800)
+    # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
+    #                        max_tokens=2000, word_substitution_list=True)
 
     now = datetime.now()
     date_str = now.strftime('%Y.%m.%d_%H%M')
