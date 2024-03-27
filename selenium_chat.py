@@ -51,6 +51,7 @@ def init_session():
     # if the botton has the class 'text-textOff' = pro disabled, 'text-super' = pro enabled
     el['perplexity']['pro_toggle'] = 'button[data-testid="copilot-toggle"]'
     el['perplexity']['pro_toggle_inactive'] = 'button.text-textOff[data-testid="copilot-toggle"]'
+    el['perplexity']['server_error_text'] = 'Sorry! There was a server error'
     el['perplexity']['send_output_lang_class'] = 'textarea[placeholder="Programming language"]'
     el['perplexity']['answer_stop_button'] = 'svg[data-icon="circle-stop"]'
     el['perplexity']['attach_class'] = 'svg[data-icon="circle-plus"]'
@@ -342,6 +343,31 @@ def is_perplexity_pro_enabled(alert=False):
         # pro is enabled
         return True
 
+def is_server_error(retries=0, reload=True, pause_between_retries=60, alert=False):
+
+    for i in range(retries+1):
+
+        try:
+            errE = driver.find_element(By.XPATH, f"//h1[contains(text(), '{el['perplexity']['server_error_text']}')]")
+            # if element found => server error page detected
+            if alert:
+                pyautogui.alert('Server Error!!')
+
+            if reload:
+                tab_close_if_url_starts_with(url_start='https://www.perplexity.ai/')
+
+                new_tab('https://www.perplexity.ai/')
+
+                # Switch to the new window, which brings it into focus
+                window_handle = driver.current_window_handle
+                driver.switch_to.window(window_handle)
+
+            time.sleep(pause_between_retries)
+
+        except Exception as e:
+            # no error detected, just return
+            return False
+    return True
 
 def is_the_answer_finished(ai='perplexity'):
     if ai == 'chatGPT':
@@ -758,6 +784,12 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
         window_handle = driver.current_window_handle
         driver.switch_to.window(window_handle)
 
+        if ai == 'perplexity':
+            # check if pro version enabled (otherwise the ai's are only very weak)
+            # is_perplexity_pro_enabled(alert=True)
+
+            is_server_error(retries=4, pause_between_retries=5*60)
+
         pa = ''
         pa_ids = []
         tc = 0
@@ -792,7 +824,10 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
                         t['group_start'] = group_id
                     t['group_end'] = group_id
                     block_range_done.append(group_id)
-            title = f'p{pa_ids[0] + 2:0>3}-{pa_ids[-1] + 2:0>3}__g{t['group_start']:0>2}-{t['group_end']:0>2}'
+            # if there are no more paragraphs to process
+            if len(pa_ids) == 0:
+                return True
+            title = f'p{pa_ids[0] + 2:0>4}-{pa_ids[-1] + 2:0>4}__g{t['group_start']:0>3}-{t['group_end']:0>3}'
 
 
         else:
@@ -808,7 +843,10 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
                 group_counter += 1
                 pa_ids +=  paragraph_ids
 
-            title = f'p{groups[group_id_start][0] + 2:0>3}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>3}__g{group_id_start:0>2}-{group_id_start - 1 + groups_to_send_per_tab:0>2}'
+            # if there are no more paragraphs to process
+            if len(pa_ids) == 0:
+                return True
+            title = f'p{groups[group_id_start][0] + 2:0>4}-{groups[group_id_start - 1 + groups_to_send_per_tab][-1] + 2:0>4}__g{group_id_start:0>3}-{group_id_start - 1 + groups_to_send_per_tab:0>3}'
 
         # set identifier, to keep track of which tab is for what
         set_identifier(title)
@@ -825,6 +863,8 @@ def batch_populate(ai='perplexity', model='chatGPT', project='prj_lp_fug_01', nr
         if ai == 'perplexity':
             # check if pro version enabled (otherwise the ai's are only very weak)
             is_perplexity_pro_enabled(alert=True)
+
+            # is_server_error(retries=4, pause_between_retries=5*60)
 
             # change from internet search to normal query
             perplexity_set_focus('Writing')
@@ -1110,6 +1150,34 @@ def tab_scroll_to_bottom():
         print("somehow, couldnt scoll down..")
 
 
+def find_missing_numbers(directory, pattern):
+    # Compile the regular expression pattern
+    regex = re.compile(pattern)
+
+    # List to store the extracted numbers
+    numbers = []
+
+    # Iterate over all files in the given directory
+    for filename in os.listdir(directory):
+        # Search for the pattern in the filename
+        match = regex.search(filename)
+        if match:
+            # Extract the number and add it to the list
+            number = int(match.group(1))
+            numbers.append(number)
+
+    # Sort the list of numbers
+    numbers.sort()
+
+    # Find the range of numbers based on the filenames
+    start_range = min(numbers)
+    end_range = max(numbers)
+
+    # Find the missing numbers in the range
+    missing_numbers = sorted(set(range(start_range, end_range + 1)) - set(numbers))
+
+    return missing_numbers
+
 def tab_close_if_url_starts_with(url_start='https://www.perplexity.ai/'):
     global driver
 
@@ -1160,6 +1228,7 @@ if __name__ == '__main__':
 
     conf['project_name'] = 'prj_lp_fug_01'
     conf['ai'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
+    # chatGPT claude
     conf['model'] = 'claude'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
 
     # send 3 batch groups, but only process 2?
@@ -1175,9 +1244,12 @@ if __name__ == '__main__':
     onlyCollect = True
 
     i = 0
-    start_block = 51
+
+
+
+    start_block = 101
     nr_of_tabs = 10
-    nr_of_cycles = 4
+    nr_of_cycles = 5
     block_range = []
     # block_range = [48,47]
     while True:
@@ -1207,6 +1279,10 @@ if __name__ == '__main__':
         print(f' -------- time since program started (loop {i}): ', time_it.elaplsed())
 
         time.sleep(6*60)
+
+    misses = find_missing_numbers(directory=f'{conf['project_name']}/code_collector_{conf['ai']}_{conf['model']}/', pattern=r'.*_g(\d+).*')
+
+    print('missed paragraphs: ' + str(misses))
 
     # # Close the browser
     driver.quit()
