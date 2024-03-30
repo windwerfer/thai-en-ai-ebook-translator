@@ -1529,10 +1529,10 @@ if __name__ == '__main__':
     # perplexity claude 1800  | aiStudio gemini_1.5 2500
     conf['platform'] = 'aiStudio'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
     conf['model'] = 'gemini_1.5'  # chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['google_account'] = 'wdcmm'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
+    conf['google_account'] = 'rrrr'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5
-    max_tokens = 2500
+    max_tokens = 500
     nr_of_cycles = 11
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
@@ -1572,12 +1572,13 @@ if __name__ == '__main__':
 
         cycle_tabs_and_close_tabs_starting_with(conf['platform'])
 
-
+        if only_collect:
+            misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
+                                                                           successful_groups_to_pickle=True)
+            break
 
         print(f' -------- time since program started (loop {i}): ', time_it.elaplsed())
 
-        # after each loop, add paragraphs to pickle
-        misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder, successful_groups_to_pickle=True)
         if conf['platform'] == 'aiStudio':
             time.sleep(60)
         else:
@@ -1589,7 +1590,7 @@ if __name__ == '__main__':
 
     t = ''
     g = []
-    print('\n\nmissed groups (no file, len: ' + str(len(misses)) + '): ' + str(misses) )
+    # print('\n\nmissed groups (no file, len: ' + str(len(misses)) + '): ' + str(misses) )
     for mp in misses_pa:
         t += f'  {mp[0]}: paragraphs {str(mp[1])}\n'
         g.append(mp[2])

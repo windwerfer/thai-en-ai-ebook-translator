@@ -38,7 +38,7 @@ def init_config():
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1800     # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
-    conf['max_groups_to_process'] = 100  # for testing: only do a view querys before finishing
+    conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = ['transliterate',
@@ -918,6 +918,11 @@ def load_and_process_paragraphs(prompts_to_process):
     if cycles == 0:
         if pickle_paragraphs_exists(conf['project_name']):
             paragraphs = unpickle_paragraphs(conf['project_name'])
+
+            ## best to set groups_to_process = 1, run through it once, and than comment the mark_pra.. function out again
+            ##  because only after all goups are processed, will the paragraphs be pickled again..
+            # mark_paragraphs_unsuccessful(model='gemini_1.0_k.rob_2024.03.23')
+            # mark_paragraphs_unsuccessful(model='gemini_1.0_2024.03.23')
         else:
             # grab from url is not working too well, proof of concept more than anything
             # my_grab_urls.prepare_input(conf['project_name'])
@@ -931,6 +936,8 @@ def load_and_process_paragraphs(prompts_to_process):
             paragraphs = load_paragraphs(filename)
 
             pickle_paragraphs(conf['project_name'])
+
+
 
     # returns a list of queries: [{paragraphs: list_of_paragraph_ids, model: AI model to query,
     #                               prompt: prompt_text+some_paragraphs,
@@ -953,8 +960,7 @@ def load_and_process_paragraphs(prompts_to_process):
             for i, p in enumerate(paragraphs):
                 if 'transliterate' not in paragraphs[i]:
                     paragraphs[i]['transliterate'] = {
-                        'text': my_transliteration_paiboon.tokenize_and_transliterate(
-                            paragraphs[i]['original']['text'])}
+                        'text': my_transliteration_paiboon.tokenize_and_transliterate(paragraphs[i]['original']['text'])}
 
         pickle_paragraphs(conf['project_name'])
     # save_paragraphs_to_json(paragraphs, file_name=f'{conf['project_name']}/paragraphs_original.json')
@@ -1049,6 +1055,16 @@ def save_paragraphs_to_json(paragraphs, file_name, only_original_text=True):
 
     return json_array_with_keys
 
+def mark_paragraphs_unsuccessful(model='chatGPT', paragraph_id_from=0, paragraph_id_to=99999):
+    global paragraphs
+    for i in range(paragraph_id_from, paragraph_id_to):
+        if i > len(paragraphs):
+            break
+        try:
+            paragraphs[i][model]['success'] = False
+        except Exception as e:
+            print(f' -mark unsuccessful not possible for paragraph {i}')
+
 
 def save_paragraphs_to_xml3(paragraphs, file_name, only_original_text=True, simple=False):
     # Create list of key-value pairs as objects
@@ -1140,9 +1156,11 @@ if __name__ == '__main__':
         print(f"An error occurred: {e}")
         sys.exit(1)
 
+
+
     load_and_process_paragraphs(conf['prompts_to_process'])
-    load_and_process_paragraphs(conf['prompts_to_process'])
-    load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
+    # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])

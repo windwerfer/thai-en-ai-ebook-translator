@@ -36,7 +36,23 @@ for t in lines_add:
 DEFAULT_DICT_TRIE = Trie(data.keys())
 
 
+def replace_thai_numbers(text):
+    thai_numbers = "๑๒๓๔๕๖๗๘๙๐"
+    latin_numbers = "1234567890"
+
+    # Create a translation table mapping Thai to Latin numbers
+    trans_table = str.maketrans(thai_numbers, latin_numbers)
+
+    # Use translate() to replace Thai numbers with Latin numbers
+    new_text = text.translate(trans_table)
+
+    return new_text
+
+
 def tokenize_and_transliterate(text):
+
+    text = replace_thai_numbers(text)
+
     words = word_tokenize(text)
     ret = []
     for w in words:
