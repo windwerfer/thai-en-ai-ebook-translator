@@ -1,3 +1,4 @@
+import html
 import os
 import random
 import re
@@ -54,7 +55,7 @@ def init_session():
     el['perplexity']['code_blocks_class'] = 'div.codeWrapper code'  # code element
     el['perplexity']['send_button_class'] = '.grow button svg[data-icon="arrow-right"]'  # send button
     el['perplexity']['send_followup_button_class'] = '.grow button svg[data-icon="arrow-up"]'  # send button
-    el['perplexity']['answers_class'] = 'div.text-textMain'  # each anser window
+    el['perplexity']['answers_class'] = 'div.min-w-0.break-words div div'  # each anser window
     el['perplexity']['question_class'] = 'div[data-message-author-role="user"]'  # each anser window
     el['perplexity']['prompt_textarea'] = 'textarea.col-end-4'
     # if the botton has the class 'text-textOff' = pro disabled, 'text-super' = pro enabled
@@ -73,15 +74,15 @@ def init_session():
 
     I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
     Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
     all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
     do not include any explanations.
 
-    Translate the txt file into English (you, the awesome translator app). don't put quote characters around pali terms eg.dukkha, sukkha,
+    Translate the xml values into English (you, the awesome translator app). keep pali terms in pali like for example dukkha, sukkha,
     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
 
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
@@ -96,15 +97,15 @@ def init_session():
 
     I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
     Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block (surround the xml with ```). <item> elements can not be merged together for translation or output.
+    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
     all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
     do not include any explanations.
 
-    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg.dukkha, sukkha,
+    Translate the xml values into English. keep pali terms in pali like for example dukkha, sukkha,
     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
 
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
@@ -113,19 +114,20 @@ def init_session():
 
 
             """
-    prompt['gemini_1.5'] = """
+    gemini__skip_unsafe_speech = 'skip items with unsafe speech.'
+    prompt['gemini_1.5'] = f"""
 
     I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
     Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+    Output in the same xml structure and print into a code block. <item> elements can not be merged together for translation or output.
+    all items need to be translated in sequence. 
     do not include any explanations.
 
-    Translate the txt file into English (you, the awesome translator app). put quote characters around pali terms eg.dukkha, sukkha,
+    Translate the xml values into English. keep pali terms in pali like for example dukkha, sukkha,
     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
 
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
@@ -134,6 +136,7 @@ def init_session():
     -----xml text:-----
 
 """
+    conf['google_account'] = 'wdcmm'   #default google account to use - changes the url of saved prompt
 
     continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
     continue_prompt = 'translate all <item> from attribute id=0 to id=90, and do not output attribute gr or tk of <item>. '
@@ -249,8 +252,11 @@ def wait_for_element_class(element_class, max_wait=10):
         print(f"Timed out ({max_wait}s) waiting for element with CLASS '{element_class}' to load.")
 
 
-def get_last_element(element_class):
-    elements = driver.find_elements(By.CSS_SELECTOR, element_class)
+def get_last_element(element_class, xpath=False):
+    if xpath:
+        elements = driver.find_elements(By.XPATH, element_class)
+    else:
+        elements = driver.find_elements(By.CSS_SELECTOR, element_class)
     # Select the last element from the list
     if elements:  # Check if the list is not empty
         last_element = elements[-1]
@@ -401,8 +407,8 @@ def is_server_error(retries=0, reload=True, pause_between_retries=60, alert=Fals
             return False
     return True
 
-def is_the_answer_finished(ai='perplexity'):
-    if ai == 'aiStudio':
+def is_the_answer_finished(platform='perplexity'):
+    if platform == 'aiStudio':
         try:
             stop_button = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['stop_button'])
             return False
@@ -410,7 +416,7 @@ def is_the_answer_finished(ai='perplexity'):
             print('no Stop button found -> finished ' + get_identifier())
             return True
 
-    if ai == 'chatGPT':
+    if platform == 'chatGPT':
         # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
         #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
         try:
@@ -423,7 +429,7 @@ def is_the_answer_finished(ai='perplexity'):
             print('no marker found to check if chatGPT is done answering')
             return False
 
-    if ai == 'perplexity':
+    if platform == 'perplexity':
         # len(driver.find_elements(By.CSS_SELECTOR, 'div[data-message-author-role="assistant"]'))*2
         #  == len(driver.find_elements(By.CSS_SELECTOR, '.w-full .text-gray-400.visible')) => chatgpt answer complete
         try:
@@ -509,13 +515,13 @@ def click_on_contiune_prompt():
     return False
 
 
-def click_send_prompt(ai='perplexity', wait_for_element_loaded=0):
+def click_send_prompt(platform='perplexity', wait_for_element_loaded=0):
     """ wait_for_element_loaded = seconds to wait for element to be available before giving up (0=dont wait)"""
 
     global el
 
     # get send prompt button element
-    if ai == 'chatGPT':
+    if platform == 'chatGPT':
 
         if wait_for_element_loaded > 0:
             wait_for_element_class(el['chatGPT']['send_button_class'], wait_for_element_loaded)
@@ -526,7 +532,13 @@ def click_send_prompt(ai='perplexity', wait_for_element_loaded=0):
             print('no send button found..')
             return False
 
-    if ai == 'perplexity':
+    if platform == 'aiStudio':
+        if is_the_answer_finished(platform):
+            try:
+                sendE = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['run_button'])
+            except Exception as e:
+                print(' no run/stop button found.')
+    if platform == 'perplexity':
         wait_untill_no_element_with_innertext("Uploading...")
         # perplexity has 2 butoons
 
@@ -612,13 +624,11 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
 
             time.sleep(2.1)
 
-            promptE.send_keys(Keys.CONTROL + Keys.ENTER)
+            # promptE.send_keys(Keys.CONTROL + Keys.ENTER)
 
-            click_send = False   # shortcut to send -> easy
+            # click_send = False   # shortcut to send -> easy
 
-            tab_scroll_to_bottom(platform='aiStudio')
-
-            time.sleep(20)  # maybe 10 works as well, easily too much
+            # time.sleep(20)  # maybe 10 works as well, easily too much
 
         if platform == 'chatGPT':
             # copy xml to prompt
@@ -653,21 +663,33 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
     if click_send:
 
         # Scroll to the bottom of the page
-        tab_scroll_to_bottom()
+        tab_scroll_to_bottom(platform=platform)
 
         click_send_prompt(platform, wait_for_element_loaded=15)
 
         time.sleep(2)
 
         # Scroll to the bottom of the page
-        tab_scroll_to_bottom()
+        tab_scroll_to_bottom(platform)
 
-        click_send_prompt(platform, wait_for_element_loaded=0)
+        if platform == 'aiStudio':
+            # check if error (too many requests?), wait a bit and click send again
+            try:
+                for ii in range(20):
+                    if not check_if_element_contains_pattern(promptE, pattern='⚠ Error'):
+                        break
+                    time.sleep(6*60)
+                    click_send_prompt(platform, wait_for_element_loaded=15)
+            except Exception as e:
+                print(" couldnt click..")
+
 
         # perplexity wants to help with the output.. tell it xml
         if platform == 'perplexity':
 
             try:
+                click_send_prompt(platform, wait_for_element_loaded=0)
+
                 time.sleep(5)
 
                 # Scroll to the bottom of the page
@@ -816,8 +838,8 @@ def is_window_focused(window_title, force=False):
 
 
 def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
-                   block_range=[], nr_of_groups=1, max_tokens=4000):
-    global paragraphs, prompt
+                   block_range=[], nr_of_groups=1, max_tokens=4000, process_only_untranslated_paragraphs=False):
+    global paragraphs, prompt, conf
 
 
 
@@ -830,8 +852,8 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
 
     window_tab_titles = {}
 
-    groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name='to_xml',
-                                                process_only_unfinished=False)
+    groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name=model,
+                                                process_only_unfinished=process_only_untranslated_paragraphs)
     group_id_start = start_block
     groups_to_send_per_tab = nr_of_groups  # each with 3200 tokens (if thai, english about 900)
     block_range_done = []
@@ -844,7 +866,14 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
         if platform == 'perplexity':
             new_tab('https://www.perplexity.ai/')
         if platform == 'aiStudio':
-            new_tab('https://aistudio.google.com/app/prompts/1aIq5b6sauz4Zr1wn8Qai4esCB7XBX7kn')  # already saved prompt, with safety blocker disabled
+            # only 50 querys per account / day -- needs to change chrome account in chrome too
+            if conf['google_account'] == 'rrrr':
+                new_tab('https://aistudio.google.com/app/prompts/1dGv6MBszg5FOzqORhBNcvFew-4KH6HR4')  # rrrrr account
+            elif conf['google_account'] == 'kusala':
+                new_tab('https://aistudio.google.com/app/prompts/1NPusGemK_weAi0OcJTywnY-fH8nzyKP3')  # b.kusala account
+            else:
+                new_tab('https://aistudio.google.com/app/prompts/1aIq5b6sauz4Zr1wn8Qai4esCB7XBX7kn')  # wat doi account     already saved prompt, with safety blocker disabled
+
             wait_for_element_class(el['aiStudio']['prompt_textarea'], max_wait=20)
 
         # Switch to the new window, which brings it into focus
@@ -1116,19 +1145,21 @@ def cycle_tabs_until_all_finished(platform='perplexity', model='claude', max_min
         tabs_len = len(driver.window_handles)
         for tab in range(tabs_len):
 
-            # Scroll to the bottom of the page
-            if platform == 'aiStudio':
-                tab_scroll_to_bottom(platform='aiStudio')
-            else:
-                tab_scroll_to_bottom()
+            # skip empty tabs
+            if driver.current_url == 'chrome://newtab':
+                goto_tab('next')
+                continue
 
-            time.sleep(2)  # Wait for the page to load after scrolling (adjust as needed)
+            # Scroll to the bottom of the page
+            tab_scroll_to_bottom(platform=platform)
+
+            time.sleep(0.5)  # Wait for the page to load after scrolling (adjust as needed)
 
             # sometimes it doesnt register the skip follow up click, so doublesave
             if platform == 'perplexity':
                 click_skip_follow_up_question()
 
-            time.sleep(1)
+                time.sleep(1)
 
             tab_id = get_current_tab_id()
             # check if tab is finished
@@ -1136,7 +1167,7 @@ def cycle_tabs_until_all_finished(platform='perplexity', model='claude', max_min
                 still_running = True
                 print(f'still typing id_{tab_id}' + get_identifier())
 
-            time.sleep(2)
+            # time.sleep(2)
 
             goto_tab('next')
 
@@ -1172,12 +1203,12 @@ def cycle_tabs_and_close_tabs_starting_with(platform='perplexity'):
             ta = get_current_tab_id()
             print(f' could not close tab {ta}.')
 
-        time.sleep(1)
+        time.sleep(0.5)
 
         goto_tab('next')
 
 
-def cycle_tabs_and_collect_code_elements(platform='perplexity', model='chatGPT'):
+def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='chatGPT'):
     global window_tab_titles
 
     code_folder = 'code'
@@ -1186,6 +1217,11 @@ def cycle_tabs_and_collect_code_elements(platform='perplexity', model='chatGPT')
     for tab in range(tabs_len):
         code = ''
 
+        # skip empty tabs
+        if driver.current_url == 'chrome://newtab':
+            goto_tab('next')
+            continue
+
         try:
 
             tab_scroll_to_bottom()
@@ -1193,7 +1229,12 @@ def cycle_tabs_and_collect_code_elements(platform='perplexity', model='chatGPT')
 
             if platform == 'perplexity':
                 codeE = get_last_element(el['perplexity']['code_blocks_class'])
-                code = codeE.text + '\n'
+
+                if isinstance(codeE, bool) and not codeE:
+                    codeE = get_last_element( el['perplexity']['answers_class'])
+                    code = html.unescape(codeE.get_attribute('innerHTML')) + '\n'
+                else:
+                    code = codeE.text + '\n'
             if platform == 'aiStudio':
                 pattern = r"```(.*?)```"
                 promptE = get_last_element(el['aiStudio']['answers_class'])
@@ -1222,7 +1263,7 @@ def cycle_tabs_and_collect_code_elements(platform='perplexity', model='chatGPT')
 
 
 
-            path = f"{conf['project']}/code_collector_{platform}_{model}/"
+            # path = f"{conf['project']}/code_collector_{platform}_{model}/"
             make_dir_if_not_exists(path)
             with open(f"{path}/code_{model}__{id}.xml", 'w', encoding='utf-8') as file:
                 file.write(code)
@@ -1281,6 +1322,20 @@ def tab_scroll_to_bottom(platform=''):
     except Exception as e:
         print("somehow, couldnt scoll down..")
 
+def remove_failed_files(directory, pattern='failed'):
+
+    # Iterate over all files in the given directory
+    for filename in os.listdir(directory):
+        # if query failed, do not consider the file
+        file_path = os.path.join(directory, filename)
+        if file_failed(file_path):
+            try:
+                os.remove(file_path)
+                print(f"File {file_path} has been deleted.")
+            except Exception as e:
+                print(f'File {file_path} couldnt be deleted')
+
+
 
 def find_missing_numbers(directory, pattern):
     # Compile the regular expression pattern
@@ -1291,6 +1346,11 @@ def find_missing_numbers(directory, pattern):
 
     # Iterate over all files in the given directory
     for filename in os.listdir(directory):
+        # if query failed, do not consider the file
+        file_path = os.path.join(directory, filename)
+        if file_failed(file_path):
+            continue
+
         # Search for the pattern in the filename
         match = regex.search(filename)
         if match:
@@ -1337,8 +1397,34 @@ def tab_close_if_url_starts_with(url_start='https://www.perplexity.ai/'):
         # If the original tab was closed, switch to the first remaining tab
         driver.switch_to.window(driver.window_handles[0])
 
+def check_if_element_contains_pattern(promptE, pattern='⚠ Error'):
+    try:
+        waring_text = re.compile(pattern)
+        promptE_text = promptE.text
+        matches = waring_text.findall(promptE_text)
+        if matches:
+            return True
+        else:
+            return False
+    except Exception as e:
+        return False
 
-def check_missing_ids(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pattern_item=r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>', successful_groups_to_pickle=True):
+def file_rename(scr, dst):
+    try:
+        os.rename(scr, dst)
+        print(f"File successfully renamed from {scr} to {dst}")
+    except FileNotFoundError:
+        print(f"The file {scr} does not exist.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def file_failed(file_path):
+    return 'failed' in file_path
+
+
+def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)',
+                                                       pattern_item=r'<item .*?id="(\d+)".*?>(.*?)</item>',
+                                                       successful_groups_to_pickle=True):
 
     global paragraphs
 
@@ -1348,7 +1434,7 @@ def check_missing_ids(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pa
     filename_regex = re.compile(pattern_filename)
     # Compile the regular expression pattern for the item
     # pattern_item = r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>'
-    item_id_regex = re.compile(pattern_item, re.MULTILINE)
+    item_id_regex = re.compile(pattern_item, re.DOTALL)
 
     # Iterate over all files in the given directory
     for filename in os.listdir(directory):
@@ -1358,74 +1444,49 @@ def check_missing_ids(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pa
             start_id, end_id, group_id = map(int, match.groups())
             file_path = os.path.join(directory, filename)
 
+            # if the query failed, do not process
+            if file_failed(file_path):
+                continue
+
             # Read the file content
             with open(file_path, 'r', encoding='utf-8') as file:
                 file_content = file.read()
 
-                # Extract all item IDs and values from the file content
-                items = [(int(m.group(1)), m.group(2)) for m in item_id_regex.finditer(file_content)]
+            # Extract all item IDs and values from the file content
+            items = [(int(m.group(1)), m.group(2)) for m in item_id_regex.finditer(file_content)]
 
-                # Generate the expected range of IDs
-                expected_ids = set(range(start_id, end_id + 1))
+            # Generate the expected range of IDs
+            expected_ids = set(range(start_id, end_id + 1))
 
-                # Find missing IDs
-                actual_ids = {item[0] for item in items}
-                missing_ids = sorted(expected_ids - actual_ids)
+            # Find missing IDs
+            actual_ids = {item[0] for item in items}
+            missing_ids = sorted(expected_ids - actual_ids)
 
-                if missing_ids:
-                    missing.append((filename, missing_ids, group_id))
-                else:
-                    if successful_groups_to_pickle:
-                        model = conf['model']
-                        for item in items:
+            if missing_ids:
+                missing.append((filename, missing_ids, group_id))
+                file_rename(file_path, file_path[:-4]+'___failed.xml')
+            else:
+                if successful_groups_to_pickle:
+                    model = conf['model']
+                    for item in items:
+                        try:
+                            true_id = item[0] - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
+                            paragraphs[true_id]
+                            text = re.sub(r'\n',' ', item[1])
                             try:
-                                true_id = item[0] - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
-                                paragraphs[true_id]
-                                try:
-                                    paragraphs[true_id][model]['text'] = item[1]
-                                except Exception as e:
-                                    paragraphs[true_id][model] = {}
-                                    paragraphs[true_id][model]['text'] = item[1]
+                                paragraphs[true_id][model]['text'] = text
+                                paragraphs[true_id][model]['success'] = True
                             except Exception as e:
-                                print(f'-paragraph id {true_id} not in paragraphs -> ignored.')
+                                paragraphs[true_id][model] = {}
+                                paragraphs[true_id][model]['text'] = text
+                                paragraphs[true_id][model]['success'] = True
+                        except Exception as e:
+                            print(f'-paragraph id {true_id} not in paragraphs -> ignored.')
 
 
-                        pickle_paragraphs(conf['project_name'], paragraphs_direct=paragraphs)
+    pickle_paragraphs(conf['project_name'], paragraphs_direct=paragraphs)
     return missing
-def check_missing_ids0(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)', pattern_item=r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>', write_complet_groups_to_pickle=False):
-    missing = []
 
-    # Compile the regular expression pattern for the filename
-    filename_regex = re.compile(pattern_filename)
-    # Compile the regular expression pattern for the item id
-    item_id_regex = re.compile(pattern_item, re.MULTILINE)
-
-    # Iterate over all files in the given directory
-    for filename in os.listdir(directory):
-        # Match the pattern to extract start_id and end_id
-        match = filename_regex.match(filename)
-        if match:
-            start_id, end_id, group_id = map(int, match.groups())
-            file_path = os.path.join(directory, filename)
-
-            # Read the file content
-            with open(file_path, 'r', encoding='utf-8') as file:
-                file_content = file.read()
-
-                # Extract all item IDs from the file content
-                item_ids = [int(m.group(1)) for m in item_id_regex.finditer(file_content)]
-
-                # Generate the expected range of IDs
-                expected_ids = set(range(start_id, end_id + 1))
-
-                # Find missing IDs
-                missing_ids = sorted(expected_ids - set(item_ids))
-
-                if missing_ids:
-                    missing.append((filename, missing_ids, group_id))
-
-
-    return missing
 
 
 
@@ -1460,32 +1521,39 @@ if __name__ == '__main__':
     #  second best: 1000Token (thai text) - for groups that dont match paragraphs even after a couple of attempts
 
 
-
-    # chatGPT claude
+    only_collect = True
+    only_collect = False
     conf['project_name'] = 'prj_lp_fug_01'
-    conf['platform'] = 'perplexity'  # perplexity pro must be enabled to use chatGPT / claude
-    conf['model'] = 'chatGPT'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['platform'] = 'aiStudio'  # perplexity pro must be enabled to use chatGPT / claude
-    conf['model'] = 'gemini_1.5'  # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    start_block = 31
+
+
+    # perplexity claude 1800  | aiStudio gemini_1.5 2500
+    conf['platform'] = 'aiStudio'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
+    conf['model'] = 'gemini_1.5'  # chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['google_account'] = 'wdcmm'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
+    start_block = 0
     nr_of_tabs = 5
-    nr_of_cycles = 200     # starts at 0
+    max_tokens = 2500
+    nr_of_cycles = 11
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
-    while True:
 
-        ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],
-                             nr_of_tabs=nr_of_tabs, block_range=block_range,
-                             start_block=nr_of_tabs * i + start_block, nr_of_groups=1,
-                             max_tokens=1800)
+    # ------------- config end -------------
+
+    output_folder = f'{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/'
+    for i in range(1, nr_of_cycles+1):
+        if not only_collect:
+            ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],
+                                 nr_of_tabs=nr_of_tabs, block_range=block_range,
+                                 start_block=nr_of_tabs * (i-1) + start_block, nr_of_groups=1,
+                                 max_tokens=max_tokens,
+                                 process_only_untranslated_paragraphs=True)
 
 
         cycle_tabs_until_all_finished(platform=conf['platform'], max_minutes=5)
 
-        cycle_tabs_and_collect_code_elements(platform=conf['platform'], model=conf['model'])
+        cycle_tabs_and_collect_code_elements(output_folder, platform=conf['platform'], model=conf['model'])
 
-        i += 1
-        if i > nr_of_cycles:
+        if i >= nr_of_cycles:
             break
 
         # all groups processed -> end loop
@@ -1508,20 +1576,28 @@ if __name__ == '__main__':
 
         print(f' -------- time since program started (loop {i}): ', time_it.elaplsed())
 
-        time.sleep(3*60)
+        # after each loop, add paragraphs to pickle
+        misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder, successful_groups_to_pickle=True)
+        if conf['platform'] == 'aiStudio':
+            time.sleep(60)
+        else:
+            time.sleep(5*60)
 
-    folder = f'{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}/'
-    misses = find_missing_numbers(directory=folder, pattern=r'.*_g(\d+).*')
-    misses_pa = check_missing_ids(directory=folder, successful_groups_to_pickle=True)
+    misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
+                                                                   successful_groups_to_pickle=True)
+
 
     t = ''
     g = []
-    print('\n\nmissed groups (no file): ' + str(misses))
+    print('\n\nmissed groups (no file, len: ' + str(len(misses)) + '): ' + str(misses) )
     for mp in misses_pa:
         t += f'  {mp[0]}: paragraphs {str(mp[1])}\n'
         g.append(mp[2])
     print('missed groups (paragraph missmatch): ' + str(g))
     print(f'  files incomplet:\n{t}')
+
+    # no need to keep the failed files
+    remove_failed_files(directory=output_folder)
 
     # # Close the browser
     driver.quit()

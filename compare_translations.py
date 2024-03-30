@@ -45,7 +45,7 @@ def init_config():
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'claude', 'chatGPT',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5', 'claude', 'chatGPT',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     conf['prompts'] = {}
@@ -110,7 +110,7 @@ def init_config():
     
                     translate the text of the <item> elements into english. do not include any explanations, just translate. 
                     
-                    don't put quote characters around pali terms eg.dukkha, sukkha,
+                    don't put quote characters around pali terms eg. dukkha, sukkha,
                     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
                     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
                     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
@@ -118,7 +118,7 @@ def init_config():
                     
                     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
                     
-                    passages / quotes in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
         
         """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
@@ -135,7 +135,7 @@ def init_config():
     
                     translate the text of the <item> elements into english. do not include any explanations, just translate. 
                     
-                    don't put quote characters around pali terms eg.dukkha, sukkha,
+                    don't put quote characters around pali terms eg. dukkha, sukkha,
                     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
                     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
                     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
@@ -143,7 +143,7 @@ def init_config():
                     
                     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
                     
-                    passages / quotes in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
         
         """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
