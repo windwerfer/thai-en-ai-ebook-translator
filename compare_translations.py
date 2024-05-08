@@ -26,7 +26,7 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from lib import my_text
-
+from threading import Semaphore, Timer
 
 # from lib import my_transliteration_paiboon
 
@@ -43,6 +43,7 @@ def init_config():
     conf['max_tokens_per_query__gemini1.5'] = 3000     # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_groups_to_process'] = 5  # for testing: only do a view querys before finishing
+    conf['max_requests_per_min'] = 12  # for testing: only do a view querys before finishing
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = ['transliterate',
@@ -91,7 +92,7 @@ def init_config():
         """,
         'temperature': '1.0', 'top_p': '0.95',
         'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 40,     # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
+        'use_word_substitution_list': False, 'max_requests_per_min': 2,     # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
         'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
@@ -116,7 +117,7 @@ def init_config():
         """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
         'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 9,  # 15 RPM (requests per minute), 32,000 TPM (tokens per minute), 1500 RPD (requests per day)
+        'use_word_substitution_list': False, 'max_requests_per_min': 12,  # 15 RPM (requests per minute), 32,000 TPM (tokens per minute), 1500 RPD (requests per day)
 
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
@@ -142,7 +143,7 @@ def init_config():
         """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
         'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 1,
+        'use_word_substitution_list': False, 'max_requests_per_min': 12,
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
@@ -591,6 +592,12 @@ def group_query_ai(query, send_with_paragraph_id=False, send_with_paragraph_tag=
     return ret
 
 
+def reset_semaphore(semaphore, max_requests_per_min):
+    while True:
+        time.sleep(60)  # Wait for 60 seconds before releasing
+        for _ in range(max_requests_per_min):  # Release the semaphore max_requests_per_min times
+            semaphore.release()
+
 def run_queries(paragraph_groups, paragraphs, prompts):
     """  takes the paragraph list indexes from prompt_list and creates textblocks
             those textblocks will be sent to an AI (gemini only at the moment)
@@ -598,6 +605,11 @@ def run_queries(paragraph_groups, paragraphs, prompts):
      """
 
     global stats, conf
+
+    # Add this at the beginning of your run_queries function
+    semaphore = Semaphore(conf['max_requests_per_min'])  # Initialize the semaphore with your rate limit
+    Timer(0, reset_semaphore,
+          args=(semaphore, conf['max_requests_per_min'])).start()  # Start the timer to reset semaphore every minute
 
     query_args = []
     err = []  # format: [origin_text: , answer_text: , error_message]
@@ -629,8 +641,14 @@ def run_queries(paragraph_groups, paragraphs, prompts):
     # Create a ProcessPoolExecutor with a maximum of 3 processes
     with ProcessPoolExecutor(max_workers=conf['max_workers']) as executor:
         # Submit the tasks to the executor
-        future_to_prompt = {executor.submit(group_query_ai, query_arg + [query_arg_id]): query_arg_id
-                            for query_arg_id, query_arg in enumerate(query_args)}
+        #future_to_prompt = {executor.submit(group_query_ai, query_arg + [query_arg_id]): query_arg_id
+        #                    for query_arg_id, query_arg in enumerate(query_args)}
+
+        future_to_prompt = {}
+        for query_arg_id, query_arg in enumerate(query_args):
+            semaphore.acquire()  # Acquire the semaphore before submitting the task
+            future = executor.submit(group_query_ai, query_arg + [query_arg_id])
+            future_to_prompt[future] = query_arg_id
 
         for future in as_completed(future_to_prompt):
             query_arg_id = future_to_prompt[future]
