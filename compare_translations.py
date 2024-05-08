@@ -2,6 +2,9 @@
 #   pkg install python-grpcio python-pillow   (in termux if venv, needs to passthrough those packages!!)
 #   pip install google.generativeai
 #   pip install pythainlp tzdata pprint regex chardet
+
+# configs:
+
 import argparse
 import csv
 import json
@@ -37,12 +40,13 @@ def init_config():
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1800     # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
+    conf['max_tokens_per_query__gemini1.5'] = 3000     # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
-    conf['max_groups_to_process'] = 200  # for testing: only do a view querys before finishing
+    conf['max_groups_to_process'] = 5  # for testing: only do a view querys before finishing
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = ['transliterate',
-                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
+                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']  # gemini_1.5_2024.05.08
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5', 'claude', 'chatGPT',
@@ -66,64 +70,54 @@ def init_config():
     word_annotation_hint = 'Text in Square Brackets are annotations how the word before should be handled ' + \
                            'differently. if they contain a condition, only follow the annotation if the ' + \
                            'condition is met. do not print text in square brackets.'
-    #
-    # conf['prompts']['gemini_default_2024.03'] = {
-    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-    #     'temperature': '0.5', 'top_k': '4', 'top_p': '0.45', 'engine': 'gemini', 'position': 'append',
-    #     'type': 'paragraph', 'use_word_substitution_list': 'default', 'use_word_annotation_list': 'default',
-    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    #
-    # }
-    #
-    # conf['prompts']['gemini_literal_2024.03'] = {
-    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-    #     'temperature': '0.2', 'top_k': '1', 'top_p': '0.4',
-    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more literal',
-    #     'use_word_substitution_list': 'default',
-    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    # }
 
-    # conf['prompts']['gemini_creative_2024.03'] = {
-    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-    #     'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
-    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-    #     'use_word_substitution_list': 'default',
-    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    # }
-    #
-    # conf['prompts']['gemini_k.rob_creative02'] = {
-    #     'prompt': 'translate the text into english. do not include any explanations, just translate. Do not change English parts.\n\n ',
-    #     'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
-    #     'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-    #     'use_word_substitution_list': 'default',
-    #     'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-    #     # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    # }
-
-    conf['prompts']['gemini_1.0_2024.03.23'] = {
+    conf['prompts']['gemini_1.5_2024.05.08'] = {
         'prompt': """
                     I give you a part of an xml file.
                     Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
-    
+
                     translate the text of the <item> elements into english. do not include any explanations, just translate. 
-                    
+
                     don't put quote characters around pali terms eg. dukkha, sukkha,
                     kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
                     ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
                     upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
                     (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
-                    
+
                     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-                    
+
                     passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-        
+
+        """,
+        'temperature': '1.0', 'top_p': '0.95',
+        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
+        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 40,     # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
+        'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
+        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    }
+
+    conf['prompts']['gemini_1.0_2024.03.23'] = {
+        'prompt': """
+                    I give you a part of an xml file.
+                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+
+                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
+
+                    don't put quote characters around pali terms eg. dukkha, sukkha,
+                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+
+                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+
         """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
-        'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': False,
+        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
+        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 9,  # 15 RPM (requests per minute), 32,000 TPM (tokens per minute), 1500 RPD (requests per day)
+
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
@@ -147,8 +141,8 @@ def init_config():
         
         """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
-        'engine': 'gemini', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
-        'use_word_substitution_list': False,
+        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote', 'label': 'more flowing',
+        'use_word_substitution_list': False, 'min_pause_seconds_between_querys': 1,
         'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
@@ -188,9 +182,9 @@ def init_config():
 
     try:
         os.makedirs(conf['project_name'], exist_ok=True)
-        print(f'Project directory "{conf['project_name']}" successfully opened')
+        print(f"Project directory '{conf['project_name']}' successfully opened")
     except OSError as error:
-        print(f'Project directory could not be created: "{conf['project_name']}" ')
+        print(f"Project directory could not be created: '{conf['project_name']}'" )
 
     #  google servers (not vertex)
     # gemini pro:
@@ -318,7 +312,7 @@ def unpickle_paragraphs(project_dir: str) -> dict:
         return pickle.load(f)
 
 
-def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3, top_k: int = 1,
+def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3, top_k: int = 1, model: str = 'models/gemini-1.0-pro',
                  safety: dict = None) -> object:
     """ sends a prompt to gemini and returns the result """
 
@@ -342,7 +336,7 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
     GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY']  # to fetch an environment variable.
     genai.configure(api_key=GOOGLE_API_KEY)
 
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel(model)
     generation = genai.types.GenerationConfig(
         candidate_count=1,  # Only one candidate for now.
         # stop_sequences=['list of max 5 str', 'when encountering this, output will be stoped', 'i am just a simple IA model'],
@@ -566,13 +560,15 @@ def group_query_ai(query, send_with_paragraph_id=False, send_with_paragraph_tag=
     if not send_with_paragraph_tag:
         text_group = text_group[2:]
 
+
+
     # ask google
     if prompt['engine'] == 'gemini':
         try:
             p1 = prompt['prompt'] + "\n\n" + text_group
             ret = query_gemini(p1, temperature=float(prompt['temperature']),
                                top_k=int(prompt['top_k']),
-                               top_p=float(prompt['top_p']))
+                               top_p=float(prompt['top_p']), model=prompt['model'])
 
             # r = "\n\n".split(ret)
 
@@ -656,7 +652,7 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                         else:
                             stats['total_failed'] += 1
                         m = f' [{prompt_name}] group {query_args[query_arg_id][1][0]:>4}:{query_args[query_arg_id][1][-1]:>4}' + \
-                            f' - query nr {query_arg_id + 1:>4}: failed (finish reason {result['finish_reason']})'
+                            f' - query nr {query_arg_id + 1:>4}: failed (finish reason {result["finish_reason"]})'
                         print(m)
                     except Exception as e:
                         print("error: could not add to stats['total_failed']")
@@ -743,7 +739,7 @@ def run_queries(paragraph_groups, paragraphs, prompts):
                         e))
 
     if len(err) > 0:
-        save_matrix_to_cvs(f'{conf['project_name']}/error.csv', err)
+        save_matrix_to_cvs(f'{conf["project_name"]}/error.csv', err)
 
     return paragraphs
 
@@ -1032,7 +1028,7 @@ def save_paragraphs_to_cvs(prompts_to_display, date_str, stat_str):
     stat_strs = stat_str.split('\n')
     for s1 in stat_strs:
         c.append([s1])
-    file_name = f'{conf['project_name']}/{conf['project_name']}_{date_str}.csv'
+    file_name = f'{conf["project_name"]}/{conf["project_name"]}_{date_str}.csv'
     # Open the file in write mode ('w') and create a csv.writer object
     # Ensure to open the file with newline='' to prevent adding extra newline characters on Windows
     with open(file_name, 'w', newline='', encoding='utf-8') as file:
@@ -1173,7 +1169,7 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_1800tok.xml', max_tokens=1800)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/lp_fug_1800tok.xml', max_tokens=1800)
     # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
     #                        max_tokens=2000, word_substitution_list=True)
 

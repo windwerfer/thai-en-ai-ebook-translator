@@ -145,10 +145,13 @@ def init_session():
 
     window_tab_titles = {}
 
-    user_data_dir = 'C:/Users/watdo/AppData/Local/Google/Chrome/User Data'
+    user_data_dir = '~/.config/chrome-remote'
 
     # Setup Chrome options to use the user data directory
     chrome_options = webdriver.ChromeOptions()
+    chrome_options.binary_location = "/opt/chrome-linux64/chrome"
+    chrome_driver_path = '/usr/local/bin/chromedriver'
+
 
     if attach_to_chrome_remote_debug:
         # this one line connect it to chrome remote debugg.. with the debugger account
@@ -161,7 +164,7 @@ def init_session():
         chrome_options.add_argument(f'user-data-dir={user_data_dir}')
 
     # Setup ChromeDriver
-    s = Service(ChromeDriverManager().install())
+    s = Service(executable_path=chrome_driver_path)
 
     # Initialize the Chrome driver with the options
     driver = webdriver.Chrome(service=s, options=chrome_options)
@@ -923,7 +926,7 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
             # if there are no more paragraphs to process
             if len(pa_ids) == 0:
                 return 'no more paragraphs'
-            title = f'p{pa_ids[0] + 2:0>4}-{pa_ids[-1] + 2:0>4}__g{t['group_start']:0>3}'       # -{t['group_end']:0>3}
+            title = f"p{pa_ids[0] + 2:0>4}-{pa_ids[-1] + 2:0>4}__g{t['group_start']:0>3}"       # -{t['group_end']:0>3}
 
 
         else:
@@ -1539,7 +1542,7 @@ if __name__ == '__main__':
 
     # ------------- config end -------------
 
-    output_folder = f'{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/'
+    output_folder = f"{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/"
     for i in range(1, nr_of_cycles+1):
         if not only_collect:
             ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],

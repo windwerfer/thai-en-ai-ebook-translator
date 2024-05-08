@@ -11,3 +11,4 @@ snippets/*
 tmp/*
 node_modules/*
 package*json
+pdf/*
