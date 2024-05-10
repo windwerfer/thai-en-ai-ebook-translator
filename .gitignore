@@ -12,3 +12,4 @@ tmp/*
 node_modules/*
 package*json
 pdf/*
+*/answers_api/*

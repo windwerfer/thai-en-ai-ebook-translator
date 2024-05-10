@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+# sudo apt install libicu-dev python3-icu pkg-config
+# pip install pythainlp[icu]
+
 # how it works:
 #   the thai sentences are first tokenized (split into individual words)
 #   and then transliterated through a dictionary (thai2ipa.data)
@@ -33,7 +36,7 @@ for t in lines_add:
     if len(w) != 2:
         continue
     data[w[0]] = w[1]
-DEFAULT_DICT_TRIE = Trie(data.keys())
+#DEFAULT_DICT_TRIE = Trie(data.keys())   # not needed, data is used directly
 
 
 def replace_thai_numbers(text):
@@ -63,15 +66,15 @@ def tokenize_and_transliterate(text):
         # backup transliteration if not found in dictionary
         except KeyError:
             er = True
-
+            print(f"     Transliteration: word {w} could not be resolved -> fallback: engine pyicu?")
         if er:
             try:
                 word_list_icu = word_tokenize(w, engine="icu")
                 for b in word_list_icu:
                     ret.append(romanize(b, engine='pyicu'))
             except (LookupError, TypeError, ValueError) as e:
-                    # Handle the exception
-                    print(f"     Transliteration: word {w} could not be resolved -> ignore?")
+                    pass
+
     return ' '.join(ret)
 
 
