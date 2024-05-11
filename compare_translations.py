@@ -3,7 +3,7 @@
 #   pip install google.generativeai
 #   pip install pythainlp tzdata pprint regex chardet
 
-# configs: -p "prj_dtudong_01" -i "prj_dtudong_01/input_dtudong_en.txt"
+# configs: -p "prj_dtudong_01" -i "prj_dtudong_01/input_dtudong_thai.txt"
 # configs: -p "prj_lp_choob_04" -i "prj_lp_choob_04/input_lp_choob.txt"
 
 import argparse
@@ -27,6 +27,7 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from lib import my_text
+from lib import my_prompts
 from threading import Semaphore, Timer
 
 
@@ -41,118 +42,32 @@ def init_config():
     conf = {}
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
-    conf['max_tokens_per_query__gemini'] = 1800  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
+    conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_tokens_per_query__gemini1.5'] = 3000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_groups_to_process'] = 20  # for testing: only do a view querys before finishing
     conf['tasks_per_minute'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_process'] = ['transliterate',
-                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']  # gemini_1.5_2024.05.08
+    conf['prompts_to_process'] = [
+                                    'gemini_1.0_manderin_2024.05.11',
+                                    #'gemini_1.5_manderin_2024.05.11',
+                                  ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5', 'claude', 'chatGPT',
+    # conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5', 'claude', 'chatGPT',
+    #                               'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
+    conf['prompts_to_display'] = ['original', 'gemini_1.5_manderin_2024.05.11', 'gemini_1.0_manderin_2024.05.11', 'claude', 'chatGPT',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     conf['prompts'] = {}
+    # load prompts
+    pro = my_prompts.load_prompts(conf)
+    conf['prompts'] = pro
 
-    # special case: Thai transliteration. processed through pythainlp not gemini
-    # engine: 'transliterate__pythainpl_dict_paiboon'
-    conf['prompts']['transliterate'] = {
-        # 'prompt': 'transliterate the thai text with the ISO 11940 system. do not include any explanations. keep html tags.\n\nText: ',
-        'prompt': 'Transliteration is now done through the pythainpl library, together with a dictionary thai(script)->transliteration(paiboon). (not through gemini or chatgpt)',
-        # 'temperature': '0.6', 'top_k': '2', 'top_p': '0.4',
-        'engine': 'pythainpl_dict_paiboon', 'position': 'prepend', 'type': 'footnote',
-        'use_word_substitution_list': False,
-    }
 
-    # not used right now: keep html tags and characters that are in roman/latin  unchanged.
 
-    # not used right now:
-    word_annotation_hint = 'Text in Square Brackets are annotations how the word before should be handled ' + \
-                           'differently. if they contain a condition, only follow the annotation if the ' + \
-                           'condition is met. do not print text in square brackets.'
 
-    conf['prompts']['gemini_1.5_2024.05.08'] = {
-        'prompt': """
-                    I give you a part of an xml file.
-                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
-
-                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
-
-                    don't put quote characters around pali terms eg. dukkha, sukkha,
-                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
-
-                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-
-        """,
-        'temperature': '1.0', 'top_p': '0.95', 'top_k': '',
-        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote',
-        'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_wait_between_submits': 31,  # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
-        'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
-        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    }
-
-    conf['prompts']['gemini_1.0_2024.03.23'] = {
-        'prompt': """
-                    I give you a part of an xml file.
-                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
-
-                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
-
-                    don't put quote characters around pali terms eg. dukkha, sukkha,
-                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
-
-                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-
-        """,
-        'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
-        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote',
-        'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_wait_between_submits': 9,
-        # 15 RPM (requests per minute), 32,000 TPM (tokens per minute), 1500 RPD (requests per day)
-
-        'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    }
-
-    conf['prompts']['gemini_1.0_k.rob_2024.03.23'] = {
-        'prompt': """                    
-                    I give you a part of an xml file.
-                    Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
-    
-                    translate the text of the <item> elements into english. do not include any explanations, just translate. 
-                    
-                    don't put quote characters around pali terms eg. dukkha, sukkha,
-                    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                    (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
-                    
-                    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-                    
-                    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-        
-        """,
-        'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
-        'engine': 'gemini', 'model': 'models/gemini-1.0-pro', 'position': 'append', 'type': 'footnote',
-        'label': 'more flowing',
-        'use_word_substitution_list': False, 'min_wait_between_submits': 9,
-        'max_tokens_per_query': conf['max_tokens_per_query__gemini'],
-        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
-    }
     conf['pali_terms_list_mine'] = load_word_substitution_list('lib/pali_terms_mine.txt', sep='\t')
     conf['pali_terms_list_pts'] = load_word_substitution_list('lib/pali_terms_pts.txt', sep='\t')
     conf['word_substitution_list'] = load_word_substitution_list('lib/word_substitution_list.data')
@@ -321,7 +236,7 @@ def unpickle_paragraphs(project_dir: str) -> dict:
 
 
 def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3, top_k: int = 1,
-                 model: str = 'models/gemini-1.0-pro',
+                 model_name: str = 'models/gemini-1.0-pro',
                  safety: dict = None) -> object:
     """ sends a prompt to gemini and returns the result """
 
@@ -345,7 +260,7 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
     GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY']  # to fetch an environment variable.
     genai.configure(api_key=GOOGLE_API_KEY)
 
-    model = genai.GenerativeModel(model)
+    model = genai.GenerativeModel(model_name)
     generation = genai.types.GenerationConfig(
         candidate_count=1,  # Only one candidate for now.
         # stop_sequences=['list of max 5 str', 'when encountering this, output will be stoped', 'i am just a simple IA model'],
@@ -575,7 +490,7 @@ def group_query_ai(args, send_with_paragraph_id=False, send_with_paragraph_tag=T
             p1 = prompt['prompt'] + "\n\n" + text_group
             ret = query_gemini(p1, temperature=float(prompt['temperature']),
                                top_k=int(prompt['top_k']),
-                               top_p=float(prompt['top_p']), model=prompt['model'])
+                               top_p=float(prompt['top_p']), model_name=prompt['model'])
 
             # r = "\n\n".split(ret)
 
@@ -638,19 +553,23 @@ def import_ai_answers_to_paragraphs(directory_path, print_details = False, print
     # List to hold the contents of each file
     file_contents = []
 
-    # Loop through each file in the directory
-    for filename in os.listdir(directory_path):
-        # Construct full file path
-        file_path = os.path.join(directory_path, filename)
-        # Open and read the file
-        with open(file_path, 'r', encoding='utf8') as file:
-            try:
-                # Parse the JSON data
-                data = json.load(file)
-                # Append the data to the list
-                file_contents.append(data)
-            except json.JSONDecodeError:
-                print(f"Error decoding JSON from file {filename}")
+    try:
+        # Loop through each file in the directory
+        for filename in os.listdir(directory_path):
+            # Construct full file path
+            file_path = os.path.join(directory_path, filename)
+            # Open and read the file
+            with open(file_path, 'r', encoding='utf8') as file:
+                try:
+                    # Parse the JSON data
+                    data = json.load(file)
+                    # Append the data to the list
+                    file_contents.append(data)
+                except json.JSONDecodeError:
+                    print(f"Error decoding JSON from file {filename}")
+    except Exception as e:
+        print('answers_api not yet created')
+        return
 
     # Optionally, print the contents of file_contents to verify
     #print(file_contents)

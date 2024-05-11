@@ -157,6 +157,7 @@ def repare_tags(text):
 
 def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, send_with_paragraph_tag=False, use_html_tag_guides=False, trim=True) -> dict:
     if send_with_paragraph_tag:
+        text = re.sub(r'```(xml)*(\n)*', '', text)
         paragraphs_list = re.split('\n', text)
     else:
         paragraphs_list = re.split(delimiter, text)
