@@ -3,7 +3,8 @@
 #   pip install google.generativeai
 #   pip install pythainlp tzdata pprint regex chardet
 
-# configs: -p "prj_dtudong_01" -i "prj_dtudong_01/input_dtudong_thai.txt"
+# configs: -p "prj_dtudong_01_th" -i "prj_dtudong_01_th/input_dtudong_thai_v0.2.txt"
+# configs: -p "prj_dtudong_01_en" -i "prj_dtudong_01_en/input_dtudong_en.txt"
 # configs: -p "prj_lp_choob_04" -i "prj_lp_choob_04/input_lp_choob.txt"
 
 import argparse
@@ -43,15 +44,15 @@ def init_config():
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
-    conf['max_tokens_per_query__gemini1.5'] = 3000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
+    conf['max_tokens_per_query__gemini1.5'] = 2000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_groups_to_process'] = 20  # for testing: only do a view querys before finishing
-    conf['tasks_per_minute'] = 10  # nr of queries run at the same time (multiprocess)
+    conf['tasks_per_minute'] = 2  # nr of queries run at the same time (multiprocess)
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = [
-                                    'gemini_1.0_manderin_2024.05.11',
-                                    #'gemini_1.5_manderin_2024.05.11',
+                                    #'gemini_1.0_manderin_2024.05.11',
+                                    'gemini_1.5_manderin_2024.05.11',
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
@@ -1162,7 +1163,7 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/lp_fug_1800tok.xml', max_tokens=1800)
+    # save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/lp_fug_1800tok.xml', max_tokens=1800)
     # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
     #                        max_tokens=2000, word_substitution_list=True)
 

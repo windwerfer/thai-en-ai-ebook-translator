@@ -68,7 +68,7 @@ def init_session():
     el['perplexity']['skip_followup_button_class'] = 'svg[data-icon="forward"]'
 
     prompt = {}
-    prompt['chatGPT'] = """
+    prompt['chatGPT_thai'] = """
 
     You are a translator app now. 
 
@@ -87,6 +87,25 @@ def init_session():
     Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
     passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+
+
+
+            """
+    prompt['chatGPT'] = """
+
+    You are a translator app now. 
+
+    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
+    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
+    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
+    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+    do not include any explanations.
+
+    Translate the xml values into Manderin with simplified Chinese script. 
+     (you, the awesome translator app). 
+     
+     for pali terms like dukkha, samsara use established Chinese Buddhist terms that correspond to these concepts.
+                        for example: dukkha -> 苦, samsara -> 轮回 or 生死 
 
 
 
@@ -614,7 +633,7 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
         # past clipboard to element
         promptE.send_keys(Keys.CONTROL + 'v')
 
-        time.sleep(0.5)
+        time.sleep(2.5)
 
         if platform == 'aiStudio':
 
@@ -1526,17 +1545,18 @@ if __name__ == '__main__':
 
     only_collect = True
     only_collect = False
-    conf['project_name'] = 'prj_lp_fug_01'
+    conf['project_name'] = 'prj_dtudong_01_en'
 
-
-    # perplexity claude 1800  | aiStudio gemini_1.5 2500
-    conf['platform'] = 'aiStudio'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model'] = 'gemini_1.5'  # chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    # in perplexity: disable pro will disable follow up questions.. very cool
+    # thai src: perplexity claude 1800  | aiStudio gemini_1.5 2500
+    # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
+    conf['platform'] = 'perplexity'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
+    conf['model'] = 'chatGPT'  # chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
     conf['google_account'] = 'rrrr'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
-    nr_of_tabs = 5
-    max_tokens = 500
-    nr_of_cycles = 11
+    nr_of_tabs = 5      # perplexity: 5 works well
+    max_tokens = 1000
+    nr_of_cycles = 5
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
 

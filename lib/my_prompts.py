@@ -43,7 +43,7 @@ def load_prompts(conf):
 
     pro['gemini_1.5_manderin_2024.05.11'] = {
         'prompt': """
-                        I give you a part of an xml file in Thai Language.
+                        I give you a part of an xml file in English.
                         Output in the same xml structure. <item> elements can not be merged together for translation or output.
 
                         translate the text of the <item> elements into Manderin with simplified Chinese script. 
@@ -63,7 +63,7 @@ def load_prompts(conf):
 
     pro['gemini_1.0_manderin_2024.05.11'] = {
         'prompt': """
-                        I give you a part of an xml file in Thai Language.
+                        I give you a part of an xml file in English.
                         Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
 
                         translate all the text of the <item> elements into Manderin with simplified Chinese script. 
