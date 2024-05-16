@@ -28,7 +28,8 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from lib import my_text
-from lib import my_prompts
+from lib import my_prompts_th_api
+from lib import my_prompts_ch_api
 from threading import Semaphore, Timer
 
 
@@ -38,33 +39,44 @@ from threading import Semaphore, Timer
 def init_config():
     global conf, stats, files
 
-    # --------------------------- user config starts here
+# --------------------------- user config starts here---------------------------------------
+
+    conf['prompts'] = {}
+    # load prompts
+    pro = my_prompts_th_api.load_prompts(conf)
+    conf['prompts'] = pro
 
     conf = {}
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_tokens_per_query__gemini1.5'] = 2000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
-    conf['max_groups_to_process'] = 20  # for testing: only do a view querys before finishing
+    conf['max_groups_to_process'] = 50  # for testing: only do a view querys before finishing
     conf['tasks_per_minute'] = 2  # nr of queries run at the same time (multiprocess)
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_process'] = [
-                                    #'gemini_1.0_manderin_2024.05.11',
-                                    'gemini_1.5_manderin_2024.05.11',
+    conf['prompts_to_process'] = [ #'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
+                                   'gemini_1.5_nor_2024.05.08'
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    # conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5', 'claude', 'chatGPT',
-    #                               'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
-    conf['prompts_to_display'] = ['original', 'gemini_1.5_manderin_2024.05.11', 'gemini_1.0_manderin_2024.05.11', 'claude', 'chatGPT',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_2024.05.08', 'claude', 'chatGPT', 'chatGPTo',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
-    conf['prompts'] = {}
-    # load prompts
-    pro = my_prompts.load_prompts(conf)
-    conf['prompts'] = pro
+    # ------  prj_tudong -----------
+    #conf['prompts_to_display'] = ['original',  'D_pali_str_gemini1.0', 'claude_pali', 'chatGPT_pali','chatGPTo_pali', 'B_pali_nor_gemini1.5',]
+    #conf['prompts_to_display'] = ['original',  'C_nor_gemini1.0', 'claude', 'chatGPT','chatGPTo','A_cre_gemini_1.5', ]
+    # conf['prompts_to_process'] = [  'A_cre_gemini_1.5',  'B_pali_nor_gemini1.5',
+    #                                 #'C_nor_gemini1.0', 'D_pali_str_gemini1.0',
+    #                               ]
+
+
+
+#--------------------end config ---------------------------------
+
+
+
 
 
 
@@ -259,6 +271,7 @@ def query_gemini(prompt_text: str, temperature: float = 0.5, top_p: float = 0.3,
 
     # saved in C:/Users/watdo/python/pycharm_default_enviroment_var.env
     GOOGLE_API_KEY = os.environ['GOOGLE_API_KEY']  # to fetch an environment variable.
+    #print(f'    api key: {GOOGLE_API_KEY}')
     genai.configure(api_key=GOOGLE_API_KEY)
 
     model = genai.GenerativeModel(model_name)
@@ -1163,7 +1176,7 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
-    # save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/lp_fug_1800tok.xml', max_tokens=1800)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_2000tok.xml', max_tokens=2000)
     # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
     #                        max_tokens=2000, word_substitution_list=True)
 

@@ -22,6 +22,9 @@ from compare_translations import unpickle_paragraphs, pickle_paragraphs
 from lib import my_text
 from lib import time_it
 
+from lib import my_prompts_th_perplexity
+from lib import my_prompts_ch_perplexity
+
 def init_session():
     global driver, actions, attach_to_chrome_remote_debug, el, conf, answer_conent_mem, window_tab_titles, prompt, paragraphs
 
@@ -68,93 +71,8 @@ def init_session():
     el['perplexity']['skip_followup_button_class'] = 'svg[data-icon="forward"]'
 
     prompt = {}
-    prompt['chatGPT_thai'] = """
-
-    You are a translator app now. 
-
-    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
-    do not include any explanations.
-
-    Translate the xml values into English (you, the awesome translator app). keep pali terms in pali like for example dukkha, sukkha,
-    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
-
-    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-
-
-
-            """
-    prompt['chatGPT'] = """
-
-    You are a translator app now. 
-
-    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
-    do not include any explanations.
-
-    Translate the xml values into Manderin with simplified Chinese script. 
-     (you, the awesome translator app). 
-     
-     for pali terms like dukkha, samsara use established Chinese Buddhist terms that correspond to these concepts.
-                        for example: dukkha -> 苦, samsara -> 轮回 or 生死 
-
-
-
-            """
-    prompt['claude'] = """
-
-    You are a translator app now. 
-
-    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
-    do not include any explanations.
-
-    Translate the xml values into English. keep pali terms in pali like for example dukkha, sukkha,
-    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
-
-    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-
-
-
-            """
-    gemini__skip_unsafe_speech = 'skip items with unsafe speech.'
-    prompt['gemini_1.5'] = f"""
-
-    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure and print into a code block. <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence. 
-    do not include any explanations.
-
-    Translate the xml values into English. keep pali terms in pali like for example dukkha, sukkha,
-    kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-    ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-    upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-    (don't translate pali terms them into: suffering, happiness, defilement, angel etc). 
-
-    Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-    passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
-
-    -----xml text:-----
-
-"""
+    pro = my_prompts_th_perplexity.load_prompts(conf)
+    prompt = pro
     conf['google_account'] = 'wdcmm'   #default google account to use - changes the url of saved prompt
 
     continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
@@ -642,6 +560,8 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
             # copy xml to prompt
             pyperclip.copy(pa + answer_marker)
             # past clipboard to element
+            time.sleep(1)
+
             promptE.send_keys(Keys.CONTROL + 'v')
 
             time.sleep(2.1)
@@ -670,10 +590,16 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
                 wait_untill_no_element_with_innertext("Uploading...")
             else:  # simple past for text to translate
                 # copy xml to prompt
-                pyperclip.copy(pa)
-                # past clipboard to element
-                promptE.send_keys(Keys.CONTROL + 'v')
 
+                #actions.move_to_element(promptE).perform()
+                #promptE.click()
+
+                pyperclip.copy(pa)
+
+                time.sleep(1)
+                # past clipboard to element
+
+                promptE.send_keys(Keys.CONTROL + 'v')
 
     # in case of the "are you human" question
     else:
@@ -1545,17 +1471,17 @@ if __name__ == '__main__':
 
     only_collect = True
     only_collect = False
-    conf['project_name'] = 'prj_dtudong_01_en'
+    conf['project_name'] = 'prj_dtudong_01_th'
 
     # in perplexity: disable pro will disable follow up questions.. very cool
-    # thai src: perplexity claude 1800  | aiStudio gemini_1.5 2500
+    # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform'] = 'perplexity'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model'] = 'chatGPT'  # chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['model'] = 'claude_pali'  # (=prompt) chatGPTo chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
     conf['google_account'] = 'rrrr'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5      # perplexity: 5 works well
-    max_tokens = 1000
+    max_tokens = 1200
     nr_of_cycles = 5
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
@@ -1569,7 +1495,7 @@ if __name__ == '__main__':
                                  nr_of_tabs=nr_of_tabs, block_range=block_range,
                                  start_block=nr_of_tabs * (i-1) + start_block, nr_of_groups=1,
                                  max_tokens=max_tokens,
-                                 process_only_untranslated_paragraphs=True)
+                                 process_only_untranslated_paragraphs=False)
 
 
         cycle_tabs_until_all_finished(platform=conf['platform'], max_minutes=5)
