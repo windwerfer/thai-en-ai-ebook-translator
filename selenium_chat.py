@@ -3,6 +3,7 @@ import os
 import random
 import re
 import time
+import json
 
 # import win32com.client as comclt
 import pyautogui
@@ -69,10 +70,13 @@ def init_session():
     el['perplexity']['answer_stop_button'] = 'svg[data-icon="circle-stop"]'
     el['perplexity']['attach_class'] = 'svg[data-icon="circle-plus"]'
     el['perplexity']['skip_followup_button_class'] = 'svg[data-icon="forward"]'
+    el['perplexity']['check_claude_opus'] = "//div[text()='Claude 3 Opus']"
+    el['perplexity']['check_chatGPT'] = "//div[text()='GPT-4 Turbo']"
+    el['perplexity']['check_chatGPTo'] = "//div[text()='GPT-4 Omni']"
+    el['perplexity']['check_model'] = ".tracking-wide']"
 
     prompt = {}
-    pro = my_prompts_th_perplexity.load_prompts(conf)
-    prompt = pro
+
     conf['google_account'] = 'wdcmm'   #default google account to use - changes the url of saved prompt
 
     continue_prompt = 'continue to translate following the specified rules from above, start 1 item previous before you stoped.'
@@ -190,6 +194,28 @@ def wait_for_element_class(element_class, max_wait=10):
         print(f"Element with ID '{element_class}' is present.")
     except TimeoutException:
         print(f"Timed out ({max_wait}s) waiting for element with CLASS '{element_class}' to load.")
+
+def get_model_name():
+    global el
+    try:
+        div_element = driver.find_element(By.XPATH, el['perplexity']['check_claude_opus'])
+        return 'claude_opus'
+    except:
+        pass
+    try:
+        div_element = driver.find_element(By.XPATH, el['perplexity']['check_chatGPTo'])
+        return 'chatGPTo'
+    except:
+        pass
+    try:
+        div_element = driver.find_element(By.XPATH, el['perplexity']['check_chatGPT'])
+        return 'chatGPT'
+    except:
+        pass
+    return 'unknown'
+
+
+
 
 
 def get_last_element(element_class, xpath=False):
@@ -528,7 +554,7 @@ def past_prompt(text, platform='perplexity', click_send=False, speed=0.0001, use
         if platform == 'perplexity':
             promptE = driver.find_element(By.CSS_SELECTOR, el['perplexity']['prompt_textarea'])
 
-        if platform == 'aiStudio': #xxxx
+        if platform == 'aiStudio':
             promptE = driver.find_element(By.CSS_SELECTOR, el['aiStudio']['prompt_textarea'])
 
     except NoSuchElementException as e:
@@ -785,7 +811,7 @@ def is_window_focused(window_title, force=False):
             return False
 
 
-def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_01', nr_of_tabs=1, start_block=0,
+def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_01', prompt_name='chatGPT',nr_of_tabs=1, start_block=0,
                    block_range=[], nr_of_groups=1, max_tokens=4000, process_only_untranslated_paragraphs=False):
     global paragraphs, prompt, conf
 
@@ -894,13 +920,22 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
 
         # set identifier, to keep track of which tab is for what
         set_identifier(title)
+        json_data = {}
 
         for paragraph_id in pa_ids:
             item = paragraphs[paragraph_id]['original']['text']
             item = re.sub(r'\n', ' ', item)
             tc += my_text.token_count(item)
             # pa += f'   <item id="{paragraph_id + 2}" gr="{group_id}" tk="{tc}">{item}</item>\n'
-            pa += f'   <item id="{paragraph_id + 2}">{item}</item>\n'
+            if conf['encode_as'] == 'xml':
+                pa += f'   <item id="{paragraph_id + 2}">{item}</item>\n'
+            if conf['encode_as'] == 'json':
+                json_data[paragraph_id + 2] = item
+
+        if conf['encode_as'] == 'json':
+            pa = json.dumps(json_data, sort_keys=True, indent=4, ensure_ascii=False)
+
+
 
         group_id_start = group_id_start + groups_to_send_per_tab
 
@@ -913,7 +948,7 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
             # change from internet search to normal query
             perplexity_set_focus('Writing')
 
-        pr = prompt[model]
+        pr = prompt[prompt_name]
 
         past_prompt([pr, pa], platform=platform, click_send=True, speed=0.0001, use_paste=True,
                     project=project)  # speed 0.001 is pretty tame..
@@ -1174,6 +1209,7 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
 
             tab_scroll_to_bottom()
             id = get_identifier()
+            model_that_answerd = ''
 
             if platform == 'perplexity':
                 codeE = get_last_element(el['perplexity']['code_blocks_class'])
@@ -1183,6 +1219,7 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
                     code = html.unescape(codeE.get_attribute('innerHTML')) + '\n'
                 else:
                     code = codeE.text + '\n'
+                model_that_answerd = get_model_name()
             if platform == 'aiStudio':
                 pattern = r"```(.*?)```"
                 promptE = get_last_element(el['aiStudio']['answers_class'])
@@ -1213,8 +1250,15 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
 
             # path = f"{conf['project']}/code_collector_{platform}_{model}/"
             make_dir_if_not_exists(path)
-            with open(f"{path}/code_{model}__{id}.xml", 'w', encoding='utf-8') as file:
+            failed = ''
+            if (model_that_answerd != model and conf['platform'] == 'perplexity'):
+                failed = '___failed'
+                print(f'\n\n   chosen model "{model}" does not match output model "{model_that_answerd}" ')
+                exit(1)
+
+            with open(f"{path}/code_{model}__{id}{failed}.xml", 'w', encoding='utf-8') as file:
                 file.write(code)
+
 
 
         except Exception as e:
@@ -1371,10 +1415,11 @@ def file_failed(file_path):
 
 
 def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)',
-                                                       pattern_item=r'<item .*?id="(\d+)".*?>(.*?)</item>',
                                                        successful_groups_to_pickle=True):
 
-    global paragraphs
+    global paragraphs,conf
+
+    pattern_xml = r'<item .*?id="(\d+)".*?>(.*?)</item>'
 
     missing = []
 
@@ -1382,7 +1427,7 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
     filename_regex = re.compile(pattern_filename)
     # Compile the regular expression pattern for the item
     # pattern_item = r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>'
-    item_id_regex = re.compile(pattern_item, re.DOTALL)
+    item_id_regex = re.compile(pattern_xml, re.DOTALL)
 
     # Iterate over all files in the given directory
     for filename in os.listdir(directory):
@@ -1401,13 +1446,35 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                 file_content = file.read()
 
             # Extract all item IDs and values from the file content
-            items = [(int(m.group(1)), m.group(2)) for m in item_id_regex.finditer(file_content)]
+            if conf['encode_as'] == 'xml':
+                items = {int(m.group(1)): m.group(2) for m in item_id_regex.finditer(file_content)}
+                actual_ids = {item[0] for item in items}
+            else:
+                # Remove everything before the first {
+                file_content = re.sub(r'^.*?\{', '{', file_content, flags=re.DOTALL)
+
+                # Remove everything after the last }
+                file_content = re.sub(r'\}.*$', '}', file_content, flags=re.DOTALL)
+
+                try:
+                    # parse json (if possible)
+                    items = json.loads(file_content)
+                except Exception as e:
+                    items = []
+
+                try:
+                    actual_ids = {int(key) for key, value in items.items()}
+
+                except Exception as e:
+                    print('couldnt parse json keys')
+
 
             # Generate the expected range of IDs
-            expected_ids = set(range(start_id, end_id + 1))
+            expected_ids = {i for i in range(start_id, end_id + 1) }
+
 
             # Find missing IDs
-            actual_ids = {item[0] for item in items}
+
             missing_ids = sorted(expected_ids - actual_ids)
 
             if missing_ids:
@@ -1416,11 +1483,11 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
             else:
                 if successful_groups_to_pickle:
                     model = conf['model']
-                    for item in items:
+                    for key, value in items.items():
                         try:
-                            true_id = item[0] - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
+                            true_id = int(key) - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
                             paragraphs[true_id]
-                            text = re.sub(r'\n',' ', item[1])
+                            text = re.sub(r'\n',' ', value)
                             try:
                                 paragraphs[true_id][model]['text'] = text
                                 paragraphs[true_id][model]['success'] = True
@@ -1476,31 +1543,36 @@ if __name__ == '__main__':
     # in perplexity: disable pro will disable follow up questions.. very cool
     # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
-    conf['platform'] = 'perplexity'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model'] = 'claude'  # (=prompt) chatGPTo chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['google_account'] = 'rrrr'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
+    conf['platform']     = 'perplexity' # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
+    conf['model']        = 'chatGPT'     # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['prompt_name']  = 'chatGPT'     #
+    conf['google_account'] = 'rrrr'     # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
-    nr_of_tabs = 5      # perplexity: 5 works well
+    nr_of_tabs = 5     # perplexity: 5 works well
     max_tokens = 1200
     nr_of_cycles = 60
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
 
+    conf['encode_as'] = 'json'
+
+    prompt = my_prompts_th_perplexity.load_prompts(conf, encode_as = conf['encode_as'])
+
+
     # ------------- config end -------------
 
 
 
-
-
-
-
-
-
     output_folder = f"{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/"
+
+    # load all already answerd json querys, first, in case the was prematurely killed
+    check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
+                                                                   successful_groups_to_pickle=True)
+
     for i in range(1, nr_of_cycles+1):
         if not only_collect:
             ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],
-                                 nr_of_tabs=nr_of_tabs, block_range=block_range,
+                                 prompt_name=conf['prompt_name'], nr_of_tabs=nr_of_tabs, block_range=block_range,
                                  start_block=nr_of_tabs * (i-1) + start_block, nr_of_groups=1,
                                  max_tokens=max_tokens,
                                  process_only_untranslated_paragraphs=True)
@@ -1555,7 +1627,7 @@ if __name__ == '__main__':
     print(f'  files incomplet:\n{t}')
 
     # no need to keep the failed files
-    remove_failed_files(directory=output_folder)
+    #remove_failed_files(directory=output_folder)
 
     # # Close the browser
     driver.quit()

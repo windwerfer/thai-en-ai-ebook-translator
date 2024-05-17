@@ -57,8 +57,8 @@ def init_config():
     conf['prompts'] = my_prompts_th_api.load_prompts(conf)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_process'] = [ #'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
-                                   'gemini_1.5_nor_2024.05.08'
+    conf['prompts_to_process'] = [ 'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
+                                   #'gemini_1.5_nor_2024.05.08'
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
@@ -72,8 +72,7 @@ def init_config():
     #                                 #'C_nor_gemini1.0', 'D_pali_str_gemini1.0',
     #                               ]
 
-
-
+    conf['encode_as'] = 'json'
 #--------------------end config ---------------------------------
 
 
@@ -442,7 +441,7 @@ def load_paragraphs(filename, delimiter='\n\n'):
         # remove leading and trailing blank lines
         content = re.sub(r'^\s+|\s+$', '', content)
 
-        spl = my_text.split_paragraphs(content)
+        spl = my_text.split_paragraphs(content, encoded_as='double_newline', trim=True)
 
         paragraphs = []
 
@@ -471,29 +470,46 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
         if prompt_name in prompts:
             print(f'prompt {prompt_name} will be processed')
             max_tokens = prompts[prompt_name]['max_tokens_per_query']
-            groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name,
-                                                        process_only_unfinished=True)
+            groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True)
             prompts_to_process[prompt_name] = groups
         else:
             print(f'prompt id: {prompt_name} not found')
     return prompts_to_process
 
 
-def group_query_ai(args, send_with_paragraph_id=False, send_with_paragraph_tag=True):
+def group_query_ai(args, encode_as='json', send_with_paragraph_tag=True):
+    """     encoded_as:
+                double_newline      eg. text1\n\ntext2
+                newline             eg. text1\ntext2
+                list                eg. 1. text1\n\n2. text2
+                json                eg {"1":"text1", "2":"text2"}
+                xml                 eg <item id="1">text1</item>\n<item id="2">text2</item>
+                p                   eg <p id='1'>text1</p>\n<p id='2'>text2</p>
+
+    """
     paragraphs_slice, paragraph_ids_group, prompt_name, prompt, conf, query_arg_id = args
+
+    encode_as = conf['encode_as']
 
     m = f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - ' + \
         f'query nr {query_arg_id + 1:>4}: start'
     print(m)
 
     text_group = ''
-    for paragraph_id in paragraphs_slice:
-        if send_with_paragraph_id:
-            text_group = text_group + f'\n\n{paragraph_id}. {paragraphs_slice[paragraph_id]}'
-        if send_with_paragraph_tag:
-            text_group = text_group + f'<item id="{paragraph_id}">{paragraphs_slice[paragraph_id]}</item>\n'
-        else:
-            text_group = text_group + f'\n\n{paragraphs_slice[paragraph_id]}'
+    if encode_as != 'json':
+        for paragraph_id in paragraphs_slice:
+            if encode_as == 'list':
+                text_group = text_group + f'\n\n{paragraph_id}. {paragraphs_slice[paragraph_id]}'
+            elif encode_as == 'xml':
+                text_group = text_group + f'<item id="{paragraph_id}">{paragraphs_slice[paragraph_id]}</item>\n'
+            elif encode_as == 'p':
+                text_group = text_group + f"<p id='{paragraph_id}'>{paragraphs_slice[paragraph_id]}</p>\n"
+            elif encode_as == 'newline':
+                text_group = text_group + f'\n{paragraphs_slice[paragraph_id]}'
+            elif encode_as == 'double_newline':
+                text_group = text_group + f'\n\n{paragraphs_slice[paragraph_id]}'
+    if encode_as == 'json':
+        text_group = json.dumps(paragraphs_slice, sort_keys=True, indent=4, ensure_ascii=False)
 
     # remove the 2 empty newlines at the beginning
     if not send_with_paragraph_tag:
@@ -512,8 +528,7 @@ def group_query_ai(args, send_with_paragraph_id=False, send_with_paragraph_tag=T
             add_file_info = ''
             ret['finish_reason_short'] = ''
 
-            ret['paragraphs'] = my_text.split_paragraphs(ret['text'], send_with_paragraph_id=send_with_paragraph_id,
-                                                         send_with_paragraph_tag=send_with_paragraph_tag)
+            ret['paragraphs'] = my_text.split_paragraphs(ret['text'], encoded_as=conf['encode_as'])
             if 'paragraphs' not in ret or len(ret['paragraphs']) == 0:
                 ret['success'] = False
                 ret['finish_reason'] = 'paragraph xml tag missing in return or not formated corectly'

@@ -1,6 +1,6 @@
 
 
-def load_prompts(conf, pali=True):
+def load_prompts(conf, encode_as='json', pali=True):
 
     pro = {}
     if (pali):
@@ -17,14 +17,19 @@ def load_prompts(conf, pali=True):
         pali_terms = """
         
         """
-
-    output_format = """
-    I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
-    Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
-    Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
-    all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
-    do not include any explanations.
-    """
+    if encode_as == 'json':
+        output_format = """
+        The input is a json string with a key and value pair. Output as a json string into a code block  (surround the xml with ```). 
+        translate and change only the values.
+        """
+    else:
+        output_format = """
+        I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
+        Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
+        Output in the same xml structure into a code block  (surround the xml with ```). <item> elements can not be merged together for translation or output.
+        all items need to be translated in sequence, if max token is reached, simply stop with the warning: max token reached.
+        do not include any explanations.
+        """
 
 
     pro['chatGPTo'] = f"""
@@ -33,7 +38,7 @@ def load_prompts(conf, pali=True):
 
         {output_format}
         
-        Translate the xml values into English (you, the awesome translator app). 
+        Translate the {encode_as} values into English (you, the awesome translator app). 
         
         {pali_terms}
 
@@ -48,7 +53,7 @@ def load_prompts(conf, pali=True):
 
         {output_format}
         
-        Translate the xml values into English (you, the awesome translator app). 
+        Translate the {encode_as} values into English (you, the awesome translator app). 
         
         {pali_terms}
 
@@ -62,7 +67,7 @@ def load_prompts(conf, pali=True):
 
         {output_format}
 
-        Translate the xml values into English (you, the awesome translator app). 
+        Translate the {encode_as} values into English (you, the awesome translator app). 
         
         {pali_terms}
 

@@ -18,6 +18,7 @@
 
 import argparse
 import importlib
+import json
 import re
 
 
@@ -155,25 +156,27 @@ def repare_tags(text):
     return text
 
 
-def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_paragraph_id=False, send_with_paragraph_tag=False, use_html_tag_guides=False, trim=True) -> dict:
+def split_paragraphs(text, encoded_as='json', trim=True) -> dict:
     """     encoded_as:
-                doulbe_newline      eg. text1\n\ntext2
+                double_newline      eg. text1\n\ntext2
+                newline             eg. text1\ntext2
                 list                eg. 1. text1\n\n2. text2
                 json                eg {"1":"text1", "2":"text2"}
                 xml                 eg <item id="1">text1</item>\n<item id="2">text2</item>
+                p                   eg <p id='1'>text1</p>\n<p id='2'>text2</p>
 
     """
+    # remove block notation if there where any
+    text = re.sub(r'```(xml)*(\n)*', '', text)
 
-
-    if send_with_paragraph_tag:
-        text = re.sub(r'```(xml)*(\n)*', '', text)
+    if encoded_as in ['newline','list','xml','p']:
         paragraphs_list = re.split('\n', text)
-    else:
-        paragraphs_list = re.split(delimiter, text)
+    if encoded_as == 'double_newline':
+        paragraphs_list = re.split("\n[ ]*\n", text)
 
     paragraphs = {}
     # using a simple number list to mark paragraph beginnings
-    if send_with_paragraph_id:
+    if encoded_as == 'list':
         for i, paragraph in enumerate(paragraphs_list):
             # find id
             regex = r"^\s*(\d+)\."
@@ -191,7 +194,7 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_pa
             except ValueError:
                 paragraphs[i] = paragraph
     # using html tags to mark paragraphs
-    elif use_html_tag_guides:
+    elif encoded_as == 'p':
         for i, paragraph in enumerate(paragraphs_list):
             # find id
             regex = r"<p id='Pa_(\d+)'></p>"
@@ -208,7 +211,7 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_pa
                 paragraphs[int(id_p)] = paragraph
             except ValueError:
                 paragraphs[i] = paragraph
-    elif send_with_paragraph_tag:
+    elif encoded_as == 'xml':
         for i, paragraph in enumerate(paragraphs_list):
             # find id
             paragraph = re.sub(r'^ +$', "", paragraph)
@@ -231,9 +234,13 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_pa
                 paragraphs[int(id_p)] = paragraph
             except ValueError:
                 paragraphs[i] = paragraph
-
-    # normal return, without modifing the paragraphs, dictionary keys are just 0 to len(paragraphs)
-    else:
+    elif encoded_as == 'json':
+        try:
+            paragraphs = json.loads(text)
+        except Exception as e:
+            return []
+    elif encoded_as in ['newline', 'double_newline']:
+        
         for i in range(0, len(paragraphs_list)):
             if trim:
                 paragraphs[i] = paragraphs_list[i].strip()
@@ -243,7 +250,20 @@ def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_pa
     return paragraphs
 
 
-def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, add_xml_to_tokencount=True, process_only_unfinished=True):
+def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True, add_to_tokencount='json', ):
+
+    """ encode_in:
+                list                eg. 1. text1\n\n2. text2
+                json                eg {"1":"text1", "2":"text2"}
+                xml                 eg <item id="1">text1</item>\n<item id="2">text2</item>
+                p                   eg <p id='1'>text1</p>\n<p id='2'>text2</p>
+
+
+        add_to_tokencount
+                    json        add a view char to judge tokens better -> "0232":"",
+                    xml         add a view char to judge tokens better -> <item id="0007"></item>
+    """
+
     paragraph_groups = []
     current_group = []
     current_group_tokens = 0
@@ -263,8 +283,11 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, add_xml_to_t
         # Check if adding the current paragraph exceeds the max_tokens limit
         #  or: check that it is a continous block of paragraphs
         adding = ''
-        if add_xml_to_tokencount:
-            adding = '<item id="0007"></item>'
+        if add_to_tokencount=='xml':
+            adding = '<item id="0007"></item>'          # approx char that will be added because of xml format
+        if add_to_tokencount=='json':
+            adding = '"0007":"",'                       # approx char that will be added because of json format
+
         current_paragraph_tokens = token_count(adding+paragraphs[i]['original']['text'])
         if current_group_tokens + current_paragraph_tokens > max_tokens or previous_added_paragraph + 1 != i:
             # If current group is not empty, add list id to paragraph_groups
@@ -286,7 +309,7 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, add_xml_to_t
     return paragraph_groups
 
 
-def split_text_by_tokens(text, max_tokens=1000, delimiter="\n\n", add_paragraph_tag=True):
+def split_text_by_tokens(text, max_tokens=1000, encoded_as='double_newline', add_paragraph_tag=True):
     """Splits a long text into blocks of approximately max_chars characters,
     while respecting paragraph boundaries.
 
@@ -303,7 +326,7 @@ def split_text_by_tokens(text, max_tokens=1000, delimiter="\n\n", add_paragraph_
 
     text = text
 
-    paragraphs = split_paragraphs(text, delimiter=delimiter)
+    paragraphs = split_paragraphs(text, encoded_as=encoded_as)
 
     for i in range(0, len(paragraphs)):
         paragraph = paragraphs[i]
