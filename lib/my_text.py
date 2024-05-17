@@ -155,7 +155,16 @@ def repare_tags(text):
     return text
 
 
-def split_paragraphs(text, delimiter="\n[ ]*\n", send_with_paragraph_id=False, send_with_paragraph_tag=False, use_html_tag_guides=False, trim=True) -> dict:
+def split_paragraphs(text, delimiter="\n[ ]*\n", encoded_as='json', send_with_paragraph_id=False, send_with_paragraph_tag=False, use_html_tag_guides=False, trim=True) -> dict:
+    """     encoded_as:
+                doulbe_newline      eg. text1\n\ntext2
+                list                eg. 1. text1\n\n2. text2
+                json                eg {"1":"text1", "2":"text2"}
+                xml                 eg <item id="1">text1</item>\n<item id="2">text2</item>
+
+    """
+
+
     if send_with_paragraph_tag:
         text = re.sub(r'```(xml)*(\n)*', '', text)
         paragraphs_list = re.split('\n', text)

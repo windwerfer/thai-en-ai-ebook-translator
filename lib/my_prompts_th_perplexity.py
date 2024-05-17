@@ -27,6 +27,21 @@ def load_prompts(conf, pali=True):
     """
 
 
+    pro['chatGPTo'] = f"""
+
+        You are a translator app now. 
+
+        {output_format}
+        
+        Translate the xml values into English (you, the awesome translator app). 
+        
+        {pali_terms}
+
+        Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+
+                """
+
     pro['chatGPT'] = f"""
 
         You are a translator app now. 

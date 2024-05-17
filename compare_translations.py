@@ -39,14 +39,12 @@ from threading import Semaphore, Timer
 def init_config():
     global conf, stats, files
 
+    conf = {}
+    conf['prompts'] = {}
+
 # --------------------------- user config starts here---------------------------------------
 
-    conf['prompts'] = {}
-    # load prompts
-    pro = my_prompts_th_api.load_prompts(conf)
-    conf['prompts'] = pro
 
-    conf = {}
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
@@ -54,6 +52,9 @@ def init_config():
     conf['max_groups_to_process'] = 50  # for testing: only do a view querys before finishing
     conf['tasks_per_minute'] = 2  # nr of queries run at the same time (multiprocess)
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
+
+    # load prompts
+    conf['prompts'] = my_prompts_th_api.load_prompts(conf)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = [ #'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
@@ -1176,7 +1177,8 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_2000tok.xml', max_tokens=2000)
+    #save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_2000tok.xml', max_tokens=2000)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_1200tok.xml', max_tokens=1200)
     # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
     #                        max_tokens=2000, word_substitution_list=True)
 

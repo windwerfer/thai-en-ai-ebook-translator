@@ -1471,22 +1471,30 @@ if __name__ == '__main__':
 
     only_collect = True
     only_collect = False
-    conf['project_name'] = 'prj_dtudong_01_th'
+    conf['project_name'] = 'prj_lp_choob_04'
 
     # in perplexity: disable pro will disable follow up questions.. very cool
     # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform'] = 'perplexity'  # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model'] = 'claude_pali'  # (=prompt) chatGPTo chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['model'] = 'claude'  # (=prompt) chatGPTo chatGPT claude gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
     conf['google_account'] = 'rrrr'  # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5      # perplexity: 5 works well
     max_tokens = 1200
-    nr_of_cycles = 5
+    nr_of_cycles = 60
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
 
     # ------------- config end -------------
+
+
+
+
+
+
+
+
 
     output_folder = f"{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/"
     for i in range(1, nr_of_cycles+1):
@@ -1495,7 +1503,7 @@ if __name__ == '__main__':
                                  nr_of_tabs=nr_of_tabs, block_range=block_range,
                                  start_block=nr_of_tabs * (i-1) + start_block, nr_of_groups=1,
                                  max_tokens=max_tokens,
-                                 process_only_untranslated_paragraphs=False)
+                                 process_only_untranslated_paragraphs=True)
 
 
         cycle_tabs_until_all_finished(platform=conf['platform'], max_minutes=5)
