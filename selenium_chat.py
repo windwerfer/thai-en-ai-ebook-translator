@@ -1459,6 +1459,8 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                 # Remove everything after the last }
                 file_content = re.sub(r'\}.*$', '}', file_content, flags=re.DOTALL)
 
+                file_content = my_text.fix_unescaped_quotes_in_json(file_content)
+
                 try:
                     # parse json (if possible)
                     items = json.loads(file_content)
@@ -1482,7 +1484,10 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
 
             if missing_ids:
                 missing.append((filename, missing_ids, group_id))
-                file_rename(file_path, file_path[:-4] + '___failed' + file_path[-4:])
+                if file_path[-4:] == 'json':
+                    file_rename(file_path, file_path[:-5] + '___failed.json')
+                else:
+                    file_rename(file_path, file_path[:-4] + '___failed' + file_path[-4:])
             else:
                 if successful_groups_to_pickle:
                     model = conf['model']
@@ -1504,8 +1509,6 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
 
     pickle_paragraphs(conf['project_name'], paragraphs_direct=paragraphs)
     return missing
-
-
 
 
 
@@ -1547,8 +1550,8 @@ if __name__ == '__main__':
     # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform']     = 'perplexity' # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model']        = 'chatGPT'     # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['prompt_name']  = 'chatGPT'     #  chatGPT chatGPTo claude
+    conf['model']        = 'claude_opus'     # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['prompt_name']  = 'claude'     #  chatGPT chatGPTo claude
     conf['google_account'] = 'rrrr'     # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5     # perplexity: 5 works well

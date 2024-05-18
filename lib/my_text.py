@@ -236,6 +236,15 @@ def split_paragraphs(text, encoded_as='json', trim=True) -> dict:
                 paragraphs[i] = paragraph
     elif encoded_as == 'json':
         try:
+            # Remove everything before the first {
+            text = re.sub(r'^.*?\{', '{', text, flags=re.DOTALL)
+
+            # Remove everything after the last }
+            text = re.sub(r'\}.*$', '}', text, flags=re.DOTALL)
+
+            # fix forgotten escape char for " inside the value part, eg. {"1":"mr x said:"hi""} -> {"1":"mr x said:\"hi\""}
+            text = fix_unescaped_quotes_in_json(text)
+
             paragraphs = json.loads(text)
         except Exception as e:
             return []
@@ -307,6 +316,26 @@ def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only
         paragraph_groups.append(current_group)
 
     return paragraph_groups
+
+
+def fix_unescaped_quotes_in_json(json):
+    """
+         fix forgotten escape char for " inside the value part, eg. {"1":"mr x said:"hi""} -> {"1":"mr x said:\"hi\""}
+    """
+    pattern = r'(.*?:\s*")(.*)(",*)'
+
+    def escape_quotes(match):
+        pattern_unescaped_quotes = r'(?<!\\)"'
+        m1 = match.group(1)
+        m2 = match.group(2)
+        m2b = re.sub(pattern_unescaped_quotes, r'\"', m2)
+        m3 = match.group(3)
+        return f'{m1}{m2b}{m3}'
+
+    # Escape the quotes
+
+    fixed = re.sub(pattern, escape_quotes, json)
+    return fixed
 
 
 def split_text_by_tokens(text, max_tokens=1000, encoded_as='double_newline', add_paragraph_tag=True):
