@@ -19,7 +19,7 @@ def load_prompts(conf, encode_as='json', pali=True):
         """
     if encode_as == 'json':
         output_format = """
-        The input is a json string with a key and value pair. Output as a json string into a code block  (surround the xml with ```). 
+        The input is a json string with a key and value pair. Output as a json string into a code block  (surround the json with ```). 
         translate and change only the values.
         """
     else:

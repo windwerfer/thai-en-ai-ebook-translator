@@ -1192,7 +1192,7 @@ def cycle_tabs_and_close_tabs_starting_with(platform='perplexity'):
 
 
 def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='chatGPT'):
-    global window_tab_titles
+    global window_tab_titles,conf
 
     code_folder = 'code'
 
@@ -1256,7 +1256,7 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
                 print(f'\n\n   chosen model "{model}" does not match output model "{model_that_answerd}" ')
                 exit(1)
 
-            with open(f"{path}/code_{model}__{id}{failed}.xml", 'w', encoding='utf-8') as file:
+            with open(f"{path}/code_{model}__{id}{failed}.{conf['encode_as']}", 'w', encoding='utf-8') as file:
                 file.write(code)
 
 
@@ -1429,6 +1429,9 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
     # pattern_item = r'^[\t ]*<.*?id="(\d+)".*?>(.*?)<.*?>'
     item_id_regex = re.compile(pattern_xml, re.DOTALL)
 
+    if os.path.isdir(directory) == False:
+        return
+
     # Iterate over all files in the given directory
     for filename in os.listdir(directory):
         # Match the pattern to extract start_id and end_id
@@ -1446,7 +1449,7 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                 file_content = file.read()
 
             # Extract all item IDs and values from the file content
-            if conf['encode_as'] == 'xml':
+            if file_path[-3:] == 'xml':
                 items = {int(m.group(1)): m.group(2) for m in item_id_regex.finditer(file_content)}
                 actual_ids = {item[0] for item in items}
             else:
@@ -1479,7 +1482,7 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
 
             if missing_ids:
                 missing.append((filename, missing_ids, group_id))
-                file_rename(file_path, file_path[:-4]+'___failed.xml')
+                file_rename(file_path, file_path[:-4] + '___failed' + file_path[-4:])
             else:
                 if successful_groups_to_pickle:
                     model = conf['model']
@@ -1545,11 +1548,11 @@ if __name__ == '__main__':
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform']     = 'perplexity' # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
     conf['model']        = 'chatGPT'     # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['prompt_name']  = 'chatGPT'     #
+    conf['prompt_name']  = 'chatGPT'     #  chatGPT chatGPTo claude
     conf['google_account'] = 'rrrr'     # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5     # perplexity: 5 works well
-    max_tokens = 1200
+    max_tokens = 1300
     nr_of_cycles = 60
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs

@@ -57,12 +57,13 @@ def init_config():
     conf['prompts'] = my_prompts_th_api.load_prompts(conf)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_process'] = [ 'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
-                                   #'gemini_1.5_nor_2024.05.08'
+    conf['prompts_to_process'] = [  'transliterate',
+                                    'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
+                                    'gemini_1.5_nor_2024.05.08'
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_2024.05.08', 'claude', 'chatGPT', 'chatGPTo',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude', 'chatGPT', 'chatGPTo',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     # ------  prj_tudong -----------
@@ -919,7 +920,7 @@ def create_epub(file_name, project_name, date_str):
                           extra_args=['--css=' + css_file, f'--metadata=title:"{title}"'])
 
 
-def load_and_process_paragraphs(prompts_to_process):
+def load_and_process_paragraphs(prompts_to_process, save_unknowns=True):
     global conf, stats, paragraphs, cycles
 
     # if paragraphs are already loaded (eg rerun main), no need to reload paragraphs
@@ -973,11 +974,20 @@ def load_and_process_paragraphs(prompts_to_process):
             if "lib.my_transliteration_paiboon" not in sys.modules:
                 from lib import my_transliteration_paiboon
 
+            unknowns = []
             for i, p in enumerate(paragraphs):
                 if 'transliterate' not in paragraphs[i]:
+                    (transliteration, unknown_words) = my_transliteration_paiboon.tokenize_and_transliterate(
+                            paragraphs[i]['original']['text'])
                     paragraphs[i]['transliterate'] = {
-                        'text': my_transliteration_paiboon.tokenize_and_transliterate(
-                            paragraphs[i]['original']['text'])}
+                        'text': transliteration }
+                    unknowns = unknowns + unknown_words
+
+            if save_unknowns:
+                unique_sorted_unknowns = sorted(set(unknowns))
+                # output written to file, in case terminal doesn't support some characters
+                with open(f"{conf['project_name']}/tranliteration_unknown_words.txt", 'w', encoding='utf-8') as f:
+                    f.write('\t\n'.join(unique_sorted_unknowns))
 
         import_ai_answers_to_paragraphs(f"{conf['project_name']}/{conf['path_answers_api']}")
 

@@ -52,21 +52,27 @@ def replace_thai_numbers(text):
     return new_text
 
 
-def tokenize_and_transliterate(text):
+def tokenize_and_transliterate(text, save_unknowns=True):
 
     text = replace_thai_numbers(text)
 
     words = word_tokenize(text)
     ret = []
+    unknown = []
     for w in words:
         er = False
+        w = w.strip()
+        if w in ['','#','.','?','...','!','ๆ','“','”',' ']:
+            continue
+
         try:
             ret.append(data[w])
 
         # backup transliteration if not found in dictionary
         except KeyError:
             er = True
-            print(f"     Transliteration: word {w} could not be resolved -> fallback: engine pyicu?")
+            print(f"     Transliteration: word '{w}' could not be resolved -> fallback: engine pyicu?")
+            unknown.append(w)
         if er:
             try:
                 word_list_icu = word_tokenize(w, engine="icu")
@@ -75,7 +81,8 @@ def tokenize_and_transliterate(text):
             except (LookupError, TypeError, ValueError) as e:
                     pass
 
-    return ' '.join(ret)
+
+    return (' '.join(ret), unknown)
 
 
 if __name__ == "__main__":
