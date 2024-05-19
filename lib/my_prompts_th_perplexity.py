@@ -32,7 +32,7 @@ def load_prompts(conf, encode_as='json', pali=True):
         """
 
 
-    pro['chatGPTo'] = f"""
+    pro['chatGPTo_18.05.2014'] = f"""
 
         You are a translator app now. 
 
@@ -47,7 +47,7 @@ def load_prompts(conf, encode_as='json', pali=True):
 
                 """
 
-    pro['chatGPT'] = f"""
+    pro['chatGPT_18.05.2014'] = f"""
 
         You are a translator app now. 
 
@@ -61,7 +61,7 @@ def load_prompts(conf, encode_as='json', pali=True):
 
 
                 """
-    pro['claude'] = f"""
+    pro['claude_18.05.2014'] = f"""
 
         You are a translator app now. 
 

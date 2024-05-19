@@ -826,7 +826,7 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
 
     window_tab_titles = {}
 
-    groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name=model,
+    groups = my_text.group_paragraphs_by_tokens(paragraphs, max_tokens=max_tokens, prompt_name=prompt_name,
                                                 process_only_unfinished=process_only_untranslated_paragraphs)
     group_id_start = start_block
     groups_to_send_per_tab = nr_of_groups  # each with 3200 tokens (if thai, english about 900)
@@ -1256,7 +1256,7 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
                 print(f'\n\n   chosen model "{model}" does not match output model "{model_that_answerd}" ')
                 exit(1)
 
-            with open(f"{path}/code_{model}__{id}{failed}.{conf['encode_as']}", 'w', encoding='utf-8') as file:
+            with open(f"{path}/code__{id}_{model}{failed}.{conf['encode_as']}", 'w', encoding='utf-8') as file:
                 file.write(code)
 
 
@@ -1491,18 +1491,19 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
             else:
                 if successful_groups_to_pickle:
                     model = conf['model']
+                    prompt_name = conf['prompt_name']
                     for key, value in items.items():
                         try:
                             true_id = int(key) - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
                             paragraphs[true_id]
                             text = re.sub(r'\n',' ', value)
                             try:
-                                paragraphs[true_id][model]['text'] = text
-                                paragraphs[true_id][model]['success'] = True
+                                paragraphs[true_id][prompt_name]['text'] = text
+                                paragraphs[true_id][prompt_name]['success'] = True
                             except Exception as e:
-                                paragraphs[true_id][model] = {}
-                                paragraphs[true_id][model]['text'] = text
-                                paragraphs[true_id][model]['success'] = True
+                                paragraphs[true_id][prompt_name] = {}
+                                paragraphs[true_id][prompt_name]['text'] = text
+                                paragraphs[true_id][prompt_name]['success'] = True
                         except Exception as e:
                             print(f'-paragraph id {true_id} not in paragraphs -> ignored.')
 
@@ -1547,12 +1548,13 @@ if __name__ == '__main__':
     conf['project_name'] = 'prj_lp_choob_04'
 
     # in perplexity: disable pro will disable follow up questions.. very cool
+    # !! claude only does 300 querys before switching from opus to sonet
     # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
-    conf['platform']     = 'perplexity' # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model']        = 'claude_opus'     # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['prompt_name']  = 'claude'     #  chatGPT chatGPTo claude
-    conf['google_account'] = 'rrrr'     # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
+    conf['platform']     = 'perplexity'             # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
+    conf['model']        = 'claude_opus'            # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['prompt_name']  = 'claude_18.05.2014'      #  chatGPT_18.05.2014 chatGPTo_18.05.2014 claude_18.05.2014
+    conf['google_account'] = 'rrrr'                 # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 5     # perplexity: 5 works well
     max_tokens = 1300
@@ -1560,14 +1562,15 @@ if __name__ == '__main__':
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
 
-    conf['encode_as'] = 'json'
-
-    prompt = my_prompts_th_perplexity.load_prompts(conf, encode_as = conf['encode_as'])
 
 
     # ------------- config end -------------
 
+    # send / save results in what format
+    conf['encode_as'] = 'json'
 
+    # load prompts
+    prompt = my_prompts_th_perplexity.load_prompts(conf, encode_as = conf['encode_as'])
 
     output_folder = f"{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/"
 

@@ -63,7 +63,7 @@ def init_config():
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude', 'chatGPT', 'chatGPTo',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude_18.05.2014', 'chatGPT_18.05.2014', 'chatGPTo_18.05.2014',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
     # ------  prj_tudong -----------
@@ -1203,7 +1203,7 @@ if __name__ == '__main__':
     # load_and_process_paragraphs(conf['prompts_to_process'])
 
     #save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_2000tok.xml', max_tokens=2000)
-    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_1200tok.xml', max_tokens=1200)
+    save_paragraphs_to_xml(paragraphs, file_name=f'{conf["project_name"]}/xml_1300tok.xml', max_tokens=1300)
     # save_paragraphs_to_xml(paragraphs, file_name=f'{conf['project_name']}/lp_fug_3200tok_word-repl.xml',
     #                        max_tokens=2000, word_substitution_list=True)
 
