@@ -50,23 +50,24 @@ def init_config():
 
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
-    conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
-    conf['max_tokens_per_query__gemini1.5'] = 2000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
-    conf['max_groups_to_process'] = 250  # for testing: only do a view querys before finishing
-    conf['tasks_per_minute'] = 10  # nr of queries run at the same time (multiprocess)
-    conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
+    conf['max_tokens_per_query__gemini'] = 1200  # 1200 token ok for most groups
+    conf['max_tokens_per_query__gemini1.5'] = 1000  # 2000 token ok for most groups, when permanentliy failed: lowering to 1200tk or 800tk..
+    conf['max_groups_to_process'] = 50  # for testing: only do a view querys before finishing
+    conf['tasks_per_minute'] = 2  # nr of queries run at the same time (multiprocess)
+    conf['max_workers'] = 5  # nr of queries run at the same time (multiprocess) - debian_otg: 10 is too much
 
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = [  'transliterate',
-                                    'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
-                                    'gemini_1.5_nor_2024.05.08',
+                                    'gemini_1_nor', 'gemini_1_krob_01',
+                                    'gemini_15_nor_01',
+                                    'gemini_15_cre_01',
                                     'gemini_15flash_nor_01'
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude_18.05.2014', 'chatGPT_18.05.2014', 'chatGPTo_18.05.2014','gemini_15flash_nor_01',
-                                  'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_15_nor_01', 'claude_v02', 'chatGPT_v02', 'chatGPTo_v02','gemini_15_cre_01','gemini_15flash_nor_01',
+                                  'gemini_1_nor', 'gemini_1_krob_01']
 
 # --------------------end config ----------------------------------------------------------------------------------------
 
@@ -505,8 +506,8 @@ def group_query_ai(args, send_with_paragraph_tag=True):
 
     encode_as = conf['encode_as']
 
-    m = f'   paragraph group {paragraph_ids_group[0]:>4}:{paragraph_ids_group[-1]:>4} - ' + \
-        f'query nr {query_arg_id + 1:>4}: start'
+    m = f'   paragraphs: {paragraph_ids_group[0]:0>4}-{paragraph_ids_group[-1]:0>4}  ' + \
+        f'query nr: {query_arg_id + 1:0>3}: start'
     print(m)
 
     text_group = ''
@@ -569,14 +570,16 @@ def group_query_ai(args, send_with_paragraph_tag=True):
             ret['prompt_name'] = prompt_name
             ret['prompt_text'] = prompt['prompt']
             ret['text_send'] = p1
+            ret['parameters'] = {'top_p':prompt['top_p'],'top_k':prompt['top_k'],'temperature':prompt['temperature']}
+            ret['project_name'] = conf['project_name']
 
             # because the sub-processes can not talk directly to the main-process, the workers will save the return values as a file
             #  and the main thread will on start an finish parse all files and save them in the global paragraphs object
-            filename = f'{prompt_name}__p{paragraph_ids_group[0]:>4}-{paragraph_ids_group[-1]:>4}-{query_arg_id:>3}{add_file_info}.json'
+            filename = f'{prompt_name}__p{paragraph_ids_group[0]:0>4}-{paragraph_ids_group[-1]:0>4}-{query_arg_id:0>3}{add_file_info}.json'
             path = f"{conf['project_name']}/{conf['path_answers_api']}/"
             save_query_result_to_file(filename, path, ret)
 
-            m = f"   [{ret['prompt_name']}] group {ret['paragraph_ids_group'][0]:>4}:{ret['paragraph_ids_group'][-1]:>4} - query nr {ret['query_arg_id'] + 1:>3}: "
+            m = f"   [{ret['prompt_name']}] paragraphs: {ret['paragraph_ids_group'][0]:0>4}-{ret['paragraph_ids_group'][-1]:0>4}   query nr: {ret['query_arg_id'] + 1:0>3}: "
             if ret['success'] == True:
                 print(m + ' returned successfull')
             else:

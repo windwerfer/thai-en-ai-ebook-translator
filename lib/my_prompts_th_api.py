@@ -1,3 +1,4 @@
+import re
 
 
 def load_prompts(conf, pali=True):
@@ -45,7 +46,7 @@ def load_prompts(conf, pali=True):
 
 
 
-    pro['gemini_1.5_nor_2024.05.08'] = {
+    pro['gemini_15_cre_01'] = {
         'prompt': f"""
                         {output_format}
 
@@ -60,6 +61,27 @@ def load_prompts(conf, pali=True):
 
             """,
         'temperature': '0.9', 'top_p': '0.65', 'top_k': '0',
+        'engine': 'gemini', 'model': 'models/gemini-1.5-pro-latest', 'position': 'append', 'type': 'footnote',
+        'label': 'more flowing',
+        'use_word_substitution_list': False, 'min_wait_between_submits': 31,  # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
+        'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
+        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    }
+    pro['gemini_15_nor_01'] = {
+        'prompt': f"""
+                        {output_format}
+
+                        Translate the {conf['encode_as']} values into English (you, the awesome translator app). 
+                        
+                        do not include any explanations, just translate. 
+
+                        {pali_terms}
+
+                        Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
+
+
+            """,
+        'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
         'engine': 'gemini', 'model': 'models/gemini-1.5-pro-latest', 'position': 'append', 'type': 'footnote',
         'label': 'more flowing',
         'use_word_substitution_list': False, 'min_wait_between_submits': 31,  # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
@@ -87,7 +109,7 @@ def load_prompts(conf, pali=True):
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
 
-    pro['gemini_1.0_2024.03.23'] = {
+    pro['gemini_1_nor'] = {
         'prompt': f"""
                         {output_format}
 
@@ -110,7 +132,7 @@ def load_prompts(conf, pali=True):
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
 
-    pro['gemini_1.0_k.rob_2024.03.23'] = {
+    pro['gemini_1_krob_01'] = {
         'prompt': f"""                    
                         {output_format}
 
@@ -131,4 +153,14 @@ def load_prompts(conf, pali=True):
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
 
+    for i, p in pro.items():
+        pro[i]['prompt'] = remove_double_whitepace(pro[i]['prompt'])
+
     return pro
+
+
+def remove_double_whitepace(text):
+    text = re.sub(r'^[ ]+','',text)
+    text = re.sub(r'[ ]+$','',text)
+    text = re.sub(r'[ ]{2,}',' ',text)
+    return text

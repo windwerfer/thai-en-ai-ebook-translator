@@ -1,3 +1,4 @@
+import re
 
 
 def load_prompts(conf, encode_as='json', pali=True):
@@ -32,7 +33,8 @@ def load_prompts(conf, encode_as='json', pali=True):
         """
 
 
-    pro['chatGPTo_18.05.2014'] = f"""
+    pro['chatGPTo_02'] = {
+        'prompt': f"""
 
         You are a translator app now. 
 
@@ -45,9 +47,12 @@ def load_prompts(conf, encode_as='json', pali=True):
         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
 
-                """
+                """,
+        'platform': 'perplexity', 'model': 'chatGPTo',
+    }
 
-    pro['chatGPT_18.05.2014'] = f"""
+    pro['chatGPT_02'] = {
+        'prompt': f"""
 
         You are a translator app now. 
 
@@ -60,8 +65,11 @@ def load_prompts(conf, encode_as='json', pali=True):
         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
 
-                """
-    pro['claude_18.05.2014'] = f"""
+                """,
+        'platform': 'perplexity', 'model': 'chatGPT',
+    }
+    pro['claude_02'] = {
+        'prompt': f"""
 
         You are a translator app now. 
 
@@ -74,8 +82,9 @@ def load_prompts(conf, encode_as='json', pali=True):
         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
  
-                """
-
+                """,
+        'platform': 'perplexity', 'model': 'claude_opus',
+    }
 
 
 
@@ -86,7 +95,8 @@ def load_prompts(conf, encode_as='json', pali=True):
     # -------------------------------------not needed anymore --------------------------------------
 
 
-    pro['gemini_1.5'] = f"""
+    pro['gemini_1.5'] = {
+        'prompt': f"""
 
         I give you a part of an txt file with a xml structure, the top-level element is  <items> and it contains multiple <item> elements. 
         Each <item> element has a unique id and some text inside the tag (eg <item id="7">some text to translate</value> ).
@@ -104,6 +114,18 @@ def load_prompts(conf, encode_as='json', pali=True):
 
         -----xml text:-----
 
-    """
+    """,
+        'platform': 'perplexity', 'model': 'claude_opus',
+    }
+
+    for i, p in pro.items():
+        pro[i]['prompt'] = remove_double_whitepace(pro[i]['prompt'])
 
     return pro
+
+
+def remove_double_whitepace(text):
+    text = re.sub(r'^[ ]+','',text)
+    text = re.sub(r'[ ]+$','',text)
+    text = re.sub(r'[ ]{2,}',' ',text)
+    return text

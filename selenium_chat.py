@@ -811,9 +811,9 @@ def is_window_focused(window_title, force=False):
             return False
 
 
-def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_01', prompt_name='chatGPT',nr_of_tabs=1, start_block=0,
+def batch_populate(platform='perplexity', project='prj_lp_fug_01', prompt_name='chatGPT_02',nr_of_tabs=1, start_block=0,
                    block_range=[], nr_of_groups=1, max_tokens=4000, process_only_untranslated_paragraphs=False):
-    global paragraphs, prompt, conf
+    global paragraphs, prompts, conf
 
 
 
@@ -933,7 +933,7 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
                 json_data[paragraph_id + 2] = item
 
         if conf['encode_as'] == 'json':
-            pa = json.dumps(json_data, sort_keys=True, indent=4, ensure_ascii=False)
+            pa = json.dumps(json_data, sort_keys=False, indent=4, ensure_ascii=False)
 
 
 
@@ -948,7 +948,7 @@ def batch_populate(platform='perplexity', model='chatGPT', project='prj_lp_fug_0
             # change from internet search to normal query
             perplexity_set_focus('Writing')
 
-        pr = prompt[prompt_name]
+        pr = prompts[prompt_name]['prompt']
 
         past_prompt([pr, pa], platform=platform, click_send=True, speed=0.0001, use_paste=True,
                     project=project)  # speed 0.001 is pretty tame..
@@ -1191,7 +1191,7 @@ def cycle_tabs_and_close_tabs_starting_with(platform='perplexity'):
         goto_tab('next')
 
 
-def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='chatGPT'):
+def cycle_tabs_and_collect_code_elements(path, prompt_name='chatGPT_02', platform='perplexity', model='chatGPT'):
     global window_tab_titles,conf
 
     code_folder = 'code'
@@ -1210,6 +1210,7 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
             tab_scroll_to_bottom()
             id = get_identifier()
             model_that_answerd = ''
+            json_data = {}
 
             if platform == 'perplexity':
                 codeE = get_last_element(el['perplexity']['code_blocks_class'])
@@ -1219,6 +1220,18 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
                     code = html.unescape(codeE.get_attribute('innerHTML')) + '\n'
                 else:
                     code = codeE.text + '\n'
+
+                # Remove everything before the first {
+                code = re.sub(r'^.*?\{', '{', code, flags=re.DOTALL)
+                # Remove everything after the last }
+                code = re.sub(r'\}.*$', '}', code, flags=re.DOTALL)
+                # Fix mal formated json
+                code = my_text.fix_unescaped_quotes_in_json(code)
+
+                json_data['paragraphs'] = json.loads(code)
+                json_data['success'] = True
+
+
                 model_that_answerd = get_model_name()
             if platform == 'aiStudio':
                 pattern = r"```(.*?)```"
@@ -1251,13 +1264,33 @@ def cycle_tabs_and_collect_code_elements(path, platform='perplexity', model='cha
             # path = f"{conf['project']}/code_collector_{platform}_{model}/"
             make_dir_if_not_exists(path)
             failed = ''
-            if (model_that_answerd != model and conf['platform'] == 'perplexity'):
+            if (model_that_answerd != model and platform == 'perplexity'):
                 failed = '___failed'
+                json_data['success'] = False
                 print(f'\n\n   chosen model "{model}" does not match output model "{model_that_answerd}" ')
                 exit(1)
 
-            with open(f"{path}/code__{id}_{model}{failed}.{conf['encode_as']}", 'w', encoding='utf-8') as file:
-                file.write(code)
+            json_data['prompt_name'] = prompt_name
+            json_data['model'] = model
+            json_data['model_that_answerd'] = model_that_answerd
+
+            pattern = r'p(\d+)-(\d+)'
+            # Search for the pattern in the filename
+            match = re.search(pattern, id)
+            par = ''
+            if match:
+                # Extract the numbers and assign them to 'from' and 'to'
+                from_num = match.group(1)
+                to_num = match.group(2)
+                par = []
+                for i in range(int(from_num), int(to_num) + 1):
+                    par.append(i)
+            json_data['paragraph_ids_group'] = par
+
+            js = json.dumps(json_data, sort_keys=False, indent=4, ensure_ascii=False)
+
+            with open(f"{path}/{prompt_name}__{id}_{model}{failed}.{conf['encode_as']}", 'w', encoding='utf-8') as file:
+                file.write(js)
 
 
 
@@ -1417,7 +1450,7 @@ def file_failed(file_path):
 def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filename=r'.*p(\d+)-(\d+).*_g(\d+)',
                                                        successful_groups_to_pickle=True):
 
-    global paragraphs,conf
+    global paragraphs,conf,prompts
 
     pattern_xml = r'<item .*?id="(\d+)".*?>(.*?)</item>'
 
@@ -1454,28 +1487,28 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                 actual_ids = {item[0] for item in items}
             else:
                 # Remove everything before the first {
-                file_content = re.sub(r'^.*?\{', '{', file_content, flags=re.DOTALL)
+                #file_content = re.sub(r'^.*?\{', '{', file_content, flags=re.DOTALL)
 
                 # Remove everything after the last }
-                file_content = re.sub(r'\}.*$', '}', file_content, flags=re.DOTALL)
+                #file_content = re.sub(r'\}.*$', '}', file_content, flags=re.DOTALL)
 
-                file_content = my_text.fix_unescaped_quotes_in_json(file_content)
+                #file_content = my_text.fix_unescaped_quotes_in_json(file_content)
 
                 try:
                     # parse json (if possible)
-                    items = json.loads(file_content)
+                    json_cont = json.loads(file_content)
                 except Exception as e:
-                    items = []
+                    json_cont = []
 
                 try:
-                    actual_ids = {int(key) for key, value in items.items()}
+                    actual_ids = {int(key) for key, value in json_cont['paragraphs'].items()}
 
                 except Exception as e:
                     print('couldnt parse json keys')
 
 
             # Generate the expected range of IDs
-            expected_ids = {i for i in range(start_id, end_id + 1) }
+            expected_ids = {int(key) for key in json_cont['paragraph_ids_group']}
 
 
             # Find missing IDs
@@ -1490,9 +1523,9 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                     file_rename(file_path, file_path[:-4] + '___failed' + file_path[-4:])
             else:
                 if successful_groups_to_pickle:
-                    model = conf['model']
-                    prompt_name = conf['prompt_name']
-                    for key, value in items.items():
+                   # model = conf['model']
+                    prompt_name = json_cont['prompt_name']
+                    for key, value in json_cont['paragraphs'].items():
                         try:
                             true_id = int(key) - 2   # the id in the xml is +2 to fit the row numbering in the spreadsheet
                             paragraphs[true_id]
@@ -1504,6 +1537,7 @@ def check_for_missing_ids_and_add_to_paragraphs_pickle(directory, pattern_filena
                                 paragraphs[true_id][prompt_name] = {}
                                 paragraphs[true_id][prompt_name]['text'] = text
                                 paragraphs[true_id][prompt_name]['success'] = True
+                                paragraphs[true_id][prompt_name]['model'] = json_cont['model']
                         except Exception as e:
                             print(f'-paragraph id {true_id} not in paragraphs -> ignored.')
 
@@ -1548,12 +1582,12 @@ if __name__ == '__main__':
     conf['project_name'] = 'prj_lp_choob_04'
 
     # in perplexity: disable pro will disable follow up questions.. very cool
-    # !! claude only does 300 querys before switching from opus to sonet
+    # !! claude only does 15 querys before switching from opus to sonet (but with 1 query (nr_of_tabs) per 10min (pause_between_cyces) it does 50 sometimes)
     # thai src: perplexity claude 1300  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform']     = 'perplexity'             # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
-    conf['model']        = 'claude_opus'            # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
-    conf['prompt_name']  = 'claude_18.05.2014'      #  chatGPT_18.05.2014 chatGPTo_18.05.2014 claude_18.05.2014
+    #conf['model']        = 'claude_opus'            # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
+    conf['prompt_name']  = 'claude_02'             #  chatGPT_02 chatGPTo_02 claude_02
     conf['google_account'] = 'rrrr'                 # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
     nr_of_tabs = 1     # perplexity: 5 works well
@@ -1571,9 +1605,9 @@ if __name__ == '__main__':
     conf['encode_as'] = 'json'
 
     # load prompts
-    prompt = my_prompts_th_perplexity.load_prompts(conf, encode_as = conf['encode_as'])
+    prompts = my_prompts_th_perplexity.load_prompts(conf, encode_as = conf['encode_as'])
 
-    output_folder = f"{conf['project_name']}/code_collector_{conf['platform']}_{conf['model']}_{max_tokens}tk/"
+    output_folder = f"{conf['project_name']}/code_collector_{prompts[conf['prompt_name']]['platform']}_{prompts[conf['prompt_name']]['model']}_{max_tokens}tk/"
 
     # load all already answerd json querys, first, in case the was prematurely killed
     check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
@@ -1581,16 +1615,15 @@ if __name__ == '__main__':
 
     for i in range(1, nr_of_cycles+1):
         if not only_collect:
-            ret = batch_populate(platform=conf['platform'], model=conf['model'], project=conf['project_name'],
+            ret = batch_populate(platform=prompts[conf['prompt_name']]['platform'],  project=conf['project_name'],
                                  prompt_name=conf['prompt_name'], nr_of_tabs=nr_of_tabs, block_range=block_range,
                                  start_block=nr_of_tabs * (i-1) + start_block, nr_of_groups=1,
                                  max_tokens=max_tokens,
                                  process_only_untranslated_paragraphs=True)
 
+        cycle_tabs_until_all_finished(platform=prompts[conf['prompt_name']]['platform'], max_minutes=5)
 
-        cycle_tabs_until_all_finished(platform=conf['platform'], max_minutes=5)
-
-        cycle_tabs_and_collect_code_elements(output_folder, platform=conf['platform'], model=conf['model'])
+        cycle_tabs_and_collect_code_elements(output_folder, prompt_name=conf['prompt_name'], platform=prompts[conf['prompt_name']]['platform'], model=prompts[conf['prompt_name']]['model'])
 
         if i >= nr_of_cycles:
             break
@@ -1609,7 +1642,7 @@ if __name__ == '__main__':
         except Exception as e:
             pass
 
-        cycle_tabs_and_close_tabs_starting_with(conf['platform'])
+        cycle_tabs_and_close_tabs_starting_with(prompts[conf['prompt_name']]['platform'])
 
         if only_collect:
             misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
