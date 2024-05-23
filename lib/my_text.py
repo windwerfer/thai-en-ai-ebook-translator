@@ -256,7 +256,9 @@ def split_paragraphs(text, encoded_as='json', trim=True) -> dict:
             else:
                 paragraphs[i] = paragraphs_list[i]
 
-    return paragraphs
+    paragraphs_sorted_keys = sorted(paragraphs.keys(), key=lambda x: int(x))
+    paragraphs_sorted_dict = {key: paragraphs[key] for key in paragraphs_sorted_keys}
+    return paragraphs_sorted_dict
 
 
 def group_paragraphs_by_tokens(paragraphs, max_tokens, prompt_name, process_only_unfinished=True, add_to_tokencount='json', ):

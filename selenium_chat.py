@@ -1549,16 +1549,17 @@ if __name__ == '__main__':
 
     # in perplexity: disable pro will disable follow up questions.. very cool
     # !! claude only does 300 querys before switching from opus to sonet
-    # thai src: perplexity claude 1200  | aiStudio gemini_1.5 2500
+    # thai src: perplexity claude 1300  | aiStudio gemini_1.5 2500
     # engl src: perplexity claude 1000  | aiStudio gemini_1.5 2000
     conf['platform']     = 'perplexity'             # perplexity | aiStudio       # pro must be enabled to use chatGPT / claude
     conf['model']        = 'claude_opus'            # chatGPTo chatGPT claude_opus gemini_1.5           # in perplexity, must be choosen in settings->default ai     claude chatGPT
     conf['prompt_name']  = 'claude_18.05.2014'      #  chatGPT_18.05.2014 chatGPTo_18.05.2014 claude_18.05.2014
     conf['google_account'] = 'rrrr'                 # rrrr kusala or wdcmm (default: wdcmm), changes what url aiStudio loads (saved prompt) because gooogle only allows 50 querys per user for gemini 1.5
     start_block = 0
-    nr_of_tabs = 5     # perplexity: 5 works well
+    nr_of_tabs = 1     # perplexity: 5 works well
     max_tokens = 1300
     nr_of_cycles = 60
+    pause_between_cycles = 10*60
     block_range = []    # block_range = [48,47]
     paragraphs = unpickle_paragraphs(conf['project_name'])      # unpickle paragraphs
 
@@ -1620,7 +1621,7 @@ if __name__ == '__main__':
         if conf['platform'] == 'aiStudio':
             time.sleep(60)
         else:
-            time.sleep(5*60)
+            time.sleep(pause_between_cycles)
 
     misses_pa = check_for_missing_ids_and_add_to_paragraphs_pickle(directory=output_folder,
                                                                    successful_groups_to_pickle=True)

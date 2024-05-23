@@ -43,38 +43,51 @@ def init_config():
     conf['prompts'] = {}
 
 # --------------------------- user config starts here---------------------------------------
-
+        #limits https://ai.google.dev/pricing
+        #   gemini 1.0 pro:  15 RPM (requests per minute), 32,000 TPM (tokens per minute), 1,500 RPD (requests per day)
+        #   gemini 1.5 pro: 2 RequestsPM, 32,000 TokensPM, 50 RPDay
+        #   gemini 1.5 flash: 15 RPM, 1 million TPM (tokens per minute), 1,500 RPD (requests per day)
 
 
     # groups of paragraphs are sent bundled into one prompt (maybe better translation through context)
     conf['max_tokens_per_query__gemini'] = 1200  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
     conf['max_tokens_per_query__gemini1.5'] = 2000  # 1800 token ok for most groups, but some need the limit lower. 1000tk is a good alternative
-    conf['max_groups_to_process'] = 50  # for testing: only do a view querys before finishing
-    conf['tasks_per_minute'] = 2  # nr of queries run at the same time (multiprocess)
+    conf['max_groups_to_process'] = 250  # for testing: only do a view querys before finishing
+    conf['tasks_per_minute'] = 10  # nr of queries run at the same time (multiprocess)
     conf['max_workers'] = 10  # nr of queries run at the same time (multiprocess)
 
-    # load prompts
-    conf['prompts'] = my_prompts_th_api.load_prompts(conf)
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
     conf['prompts_to_process'] = [  'transliterate',
                                     'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23',
-                                    'gemini_1.5_nor_2024.05.08'
+                                    'gemini_1.5_nor_2024.05.08',
+                                    'gemini_15flash_nor_01'
                                   ]
 
     # 'gemini_default_2024.03', 'gemini_literal_2024.03',
-    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude_18.05.2014', 'chatGPT_18.05.2014', 'chatGPTo_18.05.2014',
+    conf['prompts_to_display'] = ['original', 'transliterate', '', 'gemini_1.5_nor_2024.05.08', 'claude_18.05.2014', 'chatGPT_18.05.2014', 'chatGPTo_18.05.2014','gemini_15flash_nor_01',
                                   'gemini_1.0_2024.03.23', 'gemini_1.0_k.rob_2024.03.23']
 
-    # ------  prj_tudong -----------
+# --------------------end config ----------------------------------------------------------------------------------------
+
+
+    # ------  prj_tudong ----------- (chinese project)
     #conf['prompts_to_display'] = ['original',  'D_pali_str_gemini1.0', 'claude_pali', 'chatGPT_pali','chatGPTo_pali', 'B_pali_nor_gemini1.5',]
     #conf['prompts_to_display'] = ['original',  'C_nor_gemini1.0', 'claude', 'chatGPT','chatGPTo','A_cre_gemini_1.5', ]
     # conf['prompts_to_process'] = [  'A_cre_gemini_1.5',  'B_pali_nor_gemini1.5',
     #                                 #'C_nor_gemini1.0', 'D_pali_str_gemini1.0',
     #                               ]
 
+
+
+
     conf['encode_as'] = 'json'
-#--------------------end config ---------------------------------
+    # load prompts
+    conf['prompts'] = my_prompts_th_api.load_prompts(conf)
+
+
+
+
 
 
 
@@ -478,7 +491,7 @@ def create_paragraph_groups(paragraphs, prompts, prompt_names_to_process):
     return prompts_to_process
 
 
-def group_query_ai(args, encode_as='json', send_with_paragraph_tag=True):
+def group_query_ai(args, send_with_paragraph_tag=True):
     """     encoded_as:
                 double_newline      eg. text1\n\ntext2
                 newline             eg. text1\ntext2
@@ -539,7 +552,7 @@ def group_query_ai(args, encode_as='json', send_with_paragraph_tag=True):
                 # check if sent paragarph id matches received paragraph id eg. sent: 301,302.. received: 301:'text', 302:'more'
                 errors = 0
                 for i, p in enumerate(ret['paragraphs']):
-                    if paragraph_ids_group[i] != p:
+                    if paragraph_ids_group[i] != int(p):
                         errors += 1
                 if errors > 0:
                     ret['success'] = False
@@ -559,11 +572,11 @@ def group_query_ai(args, encode_as='json', send_with_paragraph_tag=True):
 
             # because the sub-processes can not talk directly to the main-process, the workers will save the return values as a file
             #  and the main thread will on start an finish parse all files and save them in the global paragraphs object
-            filename = f'{prompt_name}__p{paragraph_ids_group[0]}-{paragraph_ids_group[-1]}-{query_arg_id}{add_file_info}.json'
+            filename = f'{prompt_name}__p{paragraph_ids_group[0]:>4}-{paragraph_ids_group[-1]:>4}-{query_arg_id:>3}{add_file_info}.json'
             path = f"{conf['project_name']}/{conf['path_answers_api']}/"
             save_query_result_to_file(filename, path, ret)
 
-            m = f"   [{ret['prompt_name']}] group {ret['paragraph_ids_group'][0]:>4}:{ret['paragraph_ids_group'][-1]:>4} - query nr {ret['query_arg_id'] + 1:>4}: "
+            m = f"   [{ret['prompt_name']}] group {ret['paragraph_ids_group'][0]:>4}:{ret['paragraph_ids_group'][-1]:>4} - query nr {ret['query_arg_id'] + 1:>3}: "
             if ret['success'] == True:
                 print(m + ' returned successfull')
             else:
@@ -677,7 +690,7 @@ def save_query_result_to_file(filename, path, data):
     # Write JSON data to a file
     make_dir_if_not_exists(path)
     with open(path + filename, 'w', encoding='utf8') as file:
-        json.dump(data, file, indent=4)  # Use indent for pretty-printing
+        json.dump(data, file, sort_keys=False, indent=4, ensure_ascii=False)  # Use indent for pretty-printing
 
     #print(f"Data has been written to {filename}")
 

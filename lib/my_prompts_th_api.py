@@ -1,6 +1,35 @@
 
 
-def load_prompts(conf):
+def load_prompts(conf, pali=True):
+
+    if conf['encode_as'] == 'json':
+        output_format = """
+        The input is a json string with a key and value pair. Output as a json string. 
+        translate and change only the values.
+        """
+    else:
+        output_format = """
+        I give you a part of an xml file.
+        Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+
+        translate the text of the <item> elements into english. do not include any explanations, just translate. 
+        """
+
+    if (pali):
+        pali_terms = """              
+        keep all pali terms in pali. for example dukkha, sukkha,
+        kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
+        ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
+        upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
+        
+
+        passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+        """
+    else:
+        pali_terms = """
+
+        """
+    # (don't translate pali terms them into: suffering, happiness, defilement, angel etc).
 
     pro = {}
 
@@ -15,22 +44,19 @@ def load_prompts(conf):
     }
 
 
+
     pro['gemini_1.5_nor_2024.05.08'] = {
-        'prompt': """
-                        I give you a part of an xml file.
-                        Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+        'prompt': f"""
+                        {output_format}
 
-                        translate the text of the <item> elements into english. do not include any explanations, just translate. 
+                        Translate the {conf['encode_as']} values into English (you, the awesome translator app). 
+                        
+                        do not include any explanations, just translate. 
 
-                        don't put quote characters around pali terms eg. dukkha, sukkha,
-                        kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                        ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                        upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                        (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+                        {pali_terms}
 
                         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
-                        passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
 
             """,
         'temperature': '0.9', 'top_p': '0.65', 'top_k': '0',
@@ -40,23 +66,38 @@ def load_prompts(conf):
         'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
         # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
     }
+    pro['gemini_15flash_nor_01'] = {
+        'prompt': f"""
+                        {output_format}
 
-    pro['gemini_1.0_2024.03.23'] = {
-        'prompt': """
-                        I give you a part of an xml file.
-                        Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
-
-                        translate the text of the <item> elements into english. do not include any explanations, just translate. 
-
-                        don't put quote characters around pali terms eg. dukkha, sukkha,
-                        kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                        ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                        upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                        (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+                        Translate the {conf['encode_as']} values into English (you, the awesome translator app). 
+                        
+                        do not include any explanations, just translate. 
+                        
+                        {pali_terms}
 
                         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
-                        passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
+            """,
+        'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
+        'engine': 'gemini', 'model': 'models/gemini-1.5-flash-latest', 'position': 'append', 'type': 'footnote',
+        'label': 'more flowing',
+        'use_word_substitution_list': False, 'min_wait_between_submits': 31,  # 2 RequestsPM, 32,000 TokensPM, 50 RPDay
+        'max_tokens_per_query': conf['max_tokens_per_query__gemini1.5'],
+        # decides how many paragraphs will be sent at one time to the AI. 1 = each separately, 1400 = approx 4 pages of text
+    }
+
+    pro['gemini_1.0_2024.03.23'] = {
+        'prompt': f"""
+                        {output_format}
+
+                        Translate the {conf['encode_as']} values into English (you, the awesome translator app). 
+                        
+                        do not include any explanations, just translate. 
+                        
+                        {pali_terms}
+
+                        Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
 
             """,
         'temperature': '0.9', 'top_k': '8', 'top_p': '0.5',
@@ -70,21 +111,16 @@ def load_prompts(conf):
     }
 
     pro['gemini_1.0_k.rob_2024.03.23'] = {
-        'prompt': """                    
-                        I give you a part of an xml file.
-                        Output in the same xml structure into a code block. <item> elements can not be merged together for translation or output.
+        'prompt': f"""                    
+                        {output_format}
 
-                        translate the text of the <item> elements into english. do not include any explanations, just translate. 
-
-                        don't put quote characters around pali terms eg. dukkha, sukkha,
-                        kilesa, deva, khadas, bhāvanā, samādhi, vipassanā, paññā, nirodha, saṅkhāra, dhamma, piṇḍapāta, maha, 
-                        ārammaṇa, kammaṭṭhāna, vimutti, saññā, vedanā, anicca, rupa, anattā, saṅgha, bhikkhu, vinaya, jhāna, 
-                        upekkhā, mettā, sammādiṭṭhi, sīla, paññā, saṃsāra, āsavā and write them in romanized pali  
-                        (like in the example, don't translate them into: suffering, happiness, defilement, angel etc). 
+                        Translate the {conf['encode_as']} values into English (you, the awesome translator app). 
+                        
+                        do not include any explanations, just translate. 
+                        
+                        {pali_terms}
 
                         Some special names I want you to translate as follows: พระอาจารย์ฟัก = Luang Pu Fug, พระอาจารย์มั่น = Luang Pu Mun
-
-                        passages in pali need to be romanized (eg. Evaṃ me sutaṃ). Take special care to translate places and names correctly.
 
             """,
         'temperature': '0.75', 'top_k': '15', 'top_p': '0.8',
